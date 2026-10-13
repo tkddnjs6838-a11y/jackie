@@ -22,3 +22,6 @@
 sysinfo.txt
 .DS_Store
 Thumbs.db
+
+# Generated test builds, captures and reports
+/output/
