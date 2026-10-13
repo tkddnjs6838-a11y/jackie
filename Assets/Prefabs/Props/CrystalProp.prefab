@@ -9,6 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6580597319506246705}
+  - component: {fileID: 6672141775481406536}
   m_Layer: 0
   m_Name: CrystalProp
   m_TagString: Untagged
@@ -32,6 +33,25 @@ Transform:
   - {fileID: 6513031961173237830}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &6672141775481406536
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451597149033643242}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7f80fd06ad59445c7bcfb04235cb8f49, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyMeshLod
+  bindings:
+  - renderer: {fileID: 2047682819236735607}
+    filter: {fileID: 4182400355629638675}
+    levels:
+    - {fileID: -1901923605265949594, guid: bd64e19efd3044745990d03a5c8d6b57, type: 3}
+    - {fileID: 4300000, guid: 956c140abd545447ba2836149676c70f, type: 2}
+    - {fileID: 4300000, guid: 480a6ba836c1547e1ae12258f6c4cbc5, type: 2}
 --- !u!1 &2505712452334756205
 GameObject:
   m_ObjectHideFlags: 0

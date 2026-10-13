@@ -54,7 +54,7 @@ void Awake()
         CreateWarningLine();
     }void Update()
     {
-        if (player == null) return;
+        if (player == null || enemy.IsKnockedBack || Time.timeScale<=0) return;
 
         if (warningLine != null)
             warningLine.enabled = state == State.WindUp;
@@ -84,7 +84,7 @@ void Awake()
         float error = dist - preferredDistance;
         if (Mathf.Abs(error) > 0.6f)
         {
-            enemy.MoveAvoidingObstacles(dir * Mathf.Sign(error) * repositionSpeed * Time.deltaTime);
+            enemy.MoveAvoidingObstacles(dir * Mathf.Sign(error) * repositionSpeed * PowerUpEffects.EnemySpeedScale * Time.deltaTime);
             transform.forward = dir;
         }
 
@@ -114,7 +114,7 @@ void Awake()
     void Charge()
     {
         Tint(windUpColor);
-        float step = chargeSpeed * Time.deltaTime;
+        float step = Mathf.Min(chargeSpeed * PowerUpEffects.EnemySpeedScale * Time.deltaTime, chargeDistance - chargeTravelled);
         enemy.MoveAvoidingObstacles(chargeDir * step);
         chargeTravelled += step;
 
@@ -201,6 +201,21 @@ void CreateWarningLine()
         warningLine.SetPosition(1, from + direction * chargeDistance);
         float pulse = 0.55f + 0.45f * Mathf.Sin(Time.time * 24f);
         warningLine.startWidth = Mathf.Lerp(0.10f, 0.24f, pulse);
+    }
+
+    void OnDisable()
+    {
+        if (enemy != null)
+        {
+            enemy.externalMovement = false;
+            enemy.damageTakenMultiplier = 1f;
+        }
+        if (warningLine != null) warningLine.enabled = false;
+    }
+
+    void OnEnable()
+    {
+        if (enemy != null) enemy.externalMovement = true;
     }
 
     void OnDestroy()

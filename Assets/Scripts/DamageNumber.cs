@@ -2,6 +2,8 @@ using UnityEngine;
 
 public class DamageNumber : MonoBehaviour
 {
+    static readonly Unity.Profiling.ProfilerMarker CostMarker = new Unity.Profiling.ProfilerMarker("Combat.DamageNumber");
+
     public float floatSpeed = 1.2f;
     public float lifetime = 0.7f;
 
@@ -34,17 +36,20 @@ public class DamageNumber : MonoBehaviour
 
     public static void Create(Vector3 worldPos, string text, Color color)
     {
-        GameObject go = new GameObject("DamageNumber");
-        go.transform.position = worldPos;
+        using (CostMarker.Auto())
+        {
+            GameObject go = new GameObject("DamageNumber");
+            go.transform.position = worldPos;
 
-        TextMesh tm = go.AddComponent<TextMesh>();
-        tm.text = text;
-        tm.color = color;
-        tm.fontSize = 64;
-        tm.characterSize = 0.08f;
-        tm.anchor = TextAnchor.MiddleCenter;
-        tm.alignment = TextAlignment.Center;
+            TextMesh tm = go.AddComponent<TextMesh>();
+            tm.text = text;
+            tm.color = color;
+            tm.fontSize = 64;
+            tm.characterSize = 0.08f;
+            tm.anchor = TextAnchor.MiddleCenter;
+            tm.alignment = TextAlignment.Center;
 
-        go.AddComponent<DamageNumber>();
+            go.AddComponent<DamageNumber>();
+        }
     }
 }

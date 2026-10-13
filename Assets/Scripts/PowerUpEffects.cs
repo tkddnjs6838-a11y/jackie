@@ -1,4 +1,3 @@
-using System.Collections;
 using UnityEngine;
 
 /// <summary>
@@ -27,19 +26,16 @@ public class PowerUpEffects : MonoBehaviour
     public static float EnemySpeedScale = 1f;
 
     [Header("Durations")]
-    public float rageSeconds = 9f;
-    public float frenzySeconds = 8f;
-    public float shieldSeconds = 5f;
-    public float slowSeconds = 6f;
+    public float rageSeconds = 5f;
+    public float frenzySeconds = 5f;
+    public float shieldSeconds = 3f;
+    public float slowSeconds = 5f;
 
     [Header("Strength")]
     public float rageDamageMultiplier = 2f;
     public float frenzyCooldownMultiplier = 0.5f;
     public float slowEnemyScale = 0.45f;
 
-    private PlayerAutoAttack attack;
-    private PlayerHealth health;
-    private Coroutine running;
 
     // read by the HUD, and by the play-mode checks
     public Kind ActiveKind { get; private set; }
@@ -50,14 +46,15 @@ public class PowerUpEffects : MonoBehaviour
     {
         Instance = this;
         EnemySpeedScale = 1f;       // static: it would survive a scene reload otherwise
-        attack = GetComponent<PlayerAutoAttack>();
-        health = GetComponent<PlayerHealth>();
     }
 
     void OnDestroy()
     {
-        EnemySpeedScale = 1f;
-        if (Instance == this) Instance = null;
+        if (Instance == this)
+        {
+            EnemySpeedScale = 1f;
+            Instance = null;
+        }
     }
 
     public static Color ColorOf(Kind kind)
@@ -82,49 +79,29 @@ public class PowerUpEffects : MonoBehaviour
         }
     }
 
+    // Temporary multipliers never modify the permanent upgrade stats.
+    public float DamageMultiplier => Active && ActiveKind == Kind.Rage ? rageDamageMultiplier : 1f;
+    public float CooldownMultiplier => Active && ActiveKind == Kind.Frenzy ? frenzyCooldownMultiplier : 1f;
+    public bool ShieldActive => Active && ActiveKind == Kind.Shield;
+
     public void Activate(Kind kind)
     {
-        // a new pickup replaces whatever is running, and the old effect must be undone
-        // first or its restore would overwrite the new one's values
-        if (running != null) StopCoroutine(running);
+        if (!isActiveAndEnabled || kind<Kind.Rage || kind>Kind.Slow) return;
         Restore();
-        running = StartCoroutine(Run(kind));
-    }
-
-    IEnumerator Run(Kind kind)
-    {
         ActiveKind = kind;
-        float duration = DurationOf(kind);
-        Remaining = duration;
-
-        switch (kind)
-        {
-            case Kind.Rage:
-                if (attack != null) attack.manualAttackDamage *= rageDamageMultiplier;
-                break;
-            case Kind.Frenzy:
-                if (attack != null) attack.manualAttackCooldown *= frenzyCooldownMultiplier;
-                break;
-            case Kind.Slow:
-                EnemySpeedScale = slowEnemyScale;
-                break;
-            case Kind.Shield:
-                break;      // topped up below, since invincibility is a decaying timer
-        }
-
-        while (Remaining > 0f)
-        {
-            Remaining -= Time.deltaTime;
-            // the shield has to be re-granted: PlayerHealth counts its i-frames down and
-            // any hit would otherwise shorten it
-            if (kind == Kind.Shield && health != null) health.GrantInvincibility(0.4f);
-            yield return null;
-        }
-
-        Remaining = 0f;
-        Restore();
-        running = null;
+        Remaining = Mathf.Max(0f, DurationOf(kind));
+        if (kind == Kind.Slow && Active) EnemySpeedScale = Mathf.Clamp01(slowEnemyScale);
     }
+
+    void Update()
+    {
+        if (!Active) return;
+        if(RunStats.Instance!=null && !RunStats.Instance.Running){Restore();return;}
+        Remaining = Mathf.Max(0f, Remaining - Time.deltaTime);
+        if (!Active) Restore();
+    }
+
+    void OnDisable() { Restore(); }
 
     float DurationOf(Kind kind)
     {
@@ -137,22 +114,9 @@ public class PowerUpEffects : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Undoes whatever is currently applied. Written as exact inverse multiplications so it
-    /// stays correct even when an upgrade changed the underlying stat mid-effect.
-    /// </summary>
     void Restore()
     {
-        if (Remaining <= 0f && EnemySpeedScale == 1f && running == null) return;
-
-        if (attack != null)
-        {
-            if (ActiveKind == Kind.Rage && Remaining > 0f)
-                attack.manualAttackDamage /= rageDamageMultiplier;
-            if (ActiveKind == Kind.Frenzy && Remaining > 0f)
-                attack.manualAttackCooldown /= frenzyCooldownMultiplier;
-        }
-        EnemySpeedScale = 1f;
+        if (Instance == this) EnemySpeedScale = 1f;
         Remaining = 0f;
     }
 }

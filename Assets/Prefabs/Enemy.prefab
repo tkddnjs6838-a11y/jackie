@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 632362871746744958}
   - component: {fileID: 8319328950814409256}
   - component: {fileID: 9064469227183328298}
+  - component: {fileID: 8066510515606431688}
   m_Layer: 0
   m_Name: Enemy
   m_TagString: Untagged
@@ -110,6 +111,25 @@ MonoBehaviour:
   amplitudeLerp: 6
   hitSquash: 0.42
   hitSquishDuration: 0.38
+--- !u!114 &8066510515606431688
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 762902260370222181}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7f80fd06ad59445c7bcfb04235cb8f49, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyMeshLod
+  bindings:
+  - renderer: {fileID: 9091747642217685473}
+    filter: {fileID: 0}
+    levels:
+    - {fileID: 5461320835613783329, guid: 798bdd44d43d2554190db4db660119a9, type: 3}
+    - {fileID: 4300000, guid: 17771b2d5196f4511b7791cb865704e9, type: 2}
+    - {fileID: 4300000, guid: 78b5588adbcf4445c81be46ac9d93baa, type: 2}
 --- !u!1001 &6545040335388303237
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -202,5 +222,10 @@ PrefabInstance:
 --- !u!4 &6727848975947348078 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 798bdd44d43d2554190db4db660119a9, type: 3}
+  m_PrefabInstance: {fileID: 6545040335388303237}
+  m_PrefabAsset: {fileID: 0}
+--- !u!137 &9091747642217685473 stripped
+SkinnedMeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 2664098864995057252, guid: 798bdd44d43d2554190db4db660119a9, type: 3}
   m_PrefabInstance: {fileID: 6545040335388303237}
   m_PrefabAsset: {fileID: 0}

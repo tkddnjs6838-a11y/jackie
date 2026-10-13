@@ -49,7 +49,7 @@ public class BossAttacks : MonoBehaviour
     [HideInInspector] public int slamCount;
     [HideInInspector] public int chargeCount;
 
-    void Start()
+    void OnEnable()
     {
         enemy = GetComponent<Enemy>();
         StartCoroutine(Brain());
@@ -57,7 +57,7 @@ public class BossAttacks : MonoBehaviour
 
     void OnDisable()
     {
-        // never leave the boss frozen out of its own movement code
+        StopAllCoroutines();
         if (enemy != null) enemy.externalMovement = false;
     }
 
@@ -77,13 +77,13 @@ public class BossAttacks : MonoBehaviour
 
     bool Ready()
     {
-        if (enemy == null) return false;
+        if (enemy == null || enemy.IsDying) return false;
         if (player == null)
         {
             player = enemy.Player;
             if (player != null) playerHealth = player.GetComponent<PlayerHealth>();
         }
-        return player != null && playerHealth != null;
+        return player != null && playerHealth != null && !playerHealth.IsDead;
     }
 
     /// <summary>Distance from the boss's body surface to the player, so its size is accounted for.</summary>
@@ -158,8 +158,9 @@ public class BossAttacks : MonoBehaviour
         bool connected = false;
         while (travelled < chargeDistance)
         {
-            float step = chargeSpeed * Time.deltaTime;
-            transform.position += dir * step;
+            float step = Mathf.Min(chargeSpeed * PowerUpEffects.EnemySpeedScale * Time.deltaTime,
+                                   chargeDistance - travelled);
+            enemy.MoveAvoidingObstacles(dir * step);
             travelled += step;
 
             if (!connected)

@@ -6,9 +6,9 @@ using UnityEngine;
 /// </summary>
 public class HitImpact : MonoBehaviour
 {
-    public float lifetime = 0.20f;
-    public float startScale = 0.25f;
-    public float endScale = 1.35f;
+    public float lifetime = 0.12f;
+    public float startScale = 0.12f;
+    public float endScale = 0.5f;
     public Color coreColor = new Color(1f, 0.95f, 0.65f, 1f);
     public Color ringColor = new Color(1f, 0.72f, 0.25f, 1f);
 
@@ -36,10 +36,10 @@ public class HitImpact : MonoBehaviour
         var shader = template != null ? template.shader : Shader.Find("Universal Render Pipeline/Unlit");
 
         core = MakePiece(PrimitiveType.Sphere, shader, coreColor);
-        core.localScale = Vector3.one * startScale * sizeMultiplier;
+        core.localScale = Vector3.one * startScale;
 
         ring = MakePiece(PrimitiveType.Sphere, shader, ringColor);
-        ring.localScale = new Vector3(startScale, startScale * 0.15f, startScale) * sizeMultiplier;
+        ring.localScale = new Vector3(startScale, startScale * 0.12f, startScale);
         ring.localRotation = Quaternion.Euler(90f, 0f, 0f);   // face the swing direction
 
         transform.localScale = Vector3.one * sizeMultiplier;
@@ -57,7 +57,10 @@ public class HitImpact : MonoBehaviour
 
         var mat = new Material(shader);
         SetTransparent(mat, color);
-        go.GetComponent<Renderer>().material = mat;
+        var renderer = go.GetComponent<Renderer>();
+        renderer.sharedMaterial = mat;
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
 
         if (coreMat == null) coreMat = mat; else ringMat = mat;
         return go.transform;
@@ -88,8 +91,8 @@ public class HitImpact : MonoBehaviour
         float t = Mathf.Clamp01(timer / lifetime);
 
         float scale = Mathf.Lerp(startScale, endScale, t);
-        if (core != null) core.localScale = Vector3.one * Mathf.Lerp(startScale, endScale * 0.6f, t);
-        if (ring != null) ring.localScale = new Vector3(scale * 1.6f, scale * 0.12f, scale * 1.6f);
+        if (core != null) core.localScale = Vector3.one * Mathf.Lerp(startScale, 0f, t);
+        if (ring != null) ring.localScale = new Vector3(scale, scale * 0.08f, scale);
 
         float alpha = 1f - t;
         Fade(coreMat, coreColor, alpha);
@@ -97,6 +100,12 @@ public class HitImpact : MonoBehaviour
 
         if (timer >= lifetime)
             Destroy(gameObject);
+    }
+
+    void OnDestroy()
+    {
+        if (coreMat != null) Destroy(coreMat);
+        if (ringMat != null) Destroy(ringMat);
     }
 
     static void Fade(Material mat, Color baseColor, float alpha)

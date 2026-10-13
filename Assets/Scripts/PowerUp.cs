@@ -31,9 +31,12 @@ public class PowerUp : MonoBehaviour
 
     public static void Spawn(Vector3 position, PowerUpEffects.Kind kind)
     {
+        if(Terrain.activeTerrain!=null)position.y=Terrain.activeTerrain.SampleHeight(position)+Terrain.activeTerrain.transform.position.y;
         var go = new GameObject("PowerUp_" + PowerUpEffects.NameOf(kind));
+        go.SetActive(false);
         go.transform.position = position;
         go.AddComponent<PowerUp>().kind = kind;
+        go.SetActive(true);
     }
 
     /// <summary>Picks one at random — every kind is equally worth having.</summary>
@@ -43,14 +46,17 @@ public class PowerUp : MonoBehaviour
         return (PowerUpEffects.Kind)values.GetValue(Random.Range(0, values.Length));
     }
 
+    void OnEnable()=>ActiveCount++;
+    void OnDisable()=>ActiveCount--;
+
     void OnDestroy()
     {
-        ActiveCount--;
+        if (coreMat != null) Destroy(coreMat);
+        if (shellMat != null) Destroy(shellMat);
     }
 
     void Awake()
     {
-        ActiveCount++;
 
         var p = GameObject.FindGameObjectWithTag("Player");
         if (p != null) player = p.transform;
@@ -59,9 +65,11 @@ public class PowerUp : MonoBehaviour
         var template = Resources.Load<Material>("AdditiveFX");
         var shader = template != null ? template.shader : Shader.Find("Universal Render Pipeline/Unlit");
 
-        shell = MakeBall("Shell", 1.05f, shader, tint * 0.7f, out shellMat);
-        core = MakeBall("Core", 0.5f, shader, tint, out coreMat);
+        shell = MakeBall("Shell", .34f, shader, tint * 0.7f, out shellMat);
+        core = MakeBall("Core", .18f, shader, tint, out coreMat);
 
+        core.localPosition=shell.localPosition=Vector3.up*.4f;
+        PickupCrateVisual.Build(transform,PickupCrateVisual.Category.Timed,tint);
         baseY = transform.position.y + 0.6f;
         var pos = transform.position;
         pos.y = baseY;
@@ -80,7 +88,8 @@ public class PowerUp : MonoBehaviour
         mf.sharedMesh = FxShapes.Sphere;
 
         var mr = go.AddComponent<MeshRenderer>();
-        mat = new Material(shader);
+        var template=Resources.Load<Material>("AdditiveFX");
+        mat = template!=null?new Material(template):new Material(shader);
         mat.color = color;
         if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
         if (mat.HasProperty("_EmissionColor")) mat.SetColor("_EmissionColor", color * 2.5f);
@@ -92,6 +101,7 @@ public class PowerUp : MonoBehaviour
 
     void Update()
     {
+        if (Time.timeScale <= 0f || RunStats.Instance==null || !RunStats.Instance.Running) return;
         age += Time.deltaTime;
         if (age >= lifetime) { Destroy(gameObject); return; }
 
@@ -119,7 +129,11 @@ public class PowerUp : MonoBehaviour
 
         if (dist <= pickupRadius)
         {
-            if (PowerUpEffects.Instance != null) PowerUpEffects.Instance.Activate(kind);
+            var effects=player.GetComponent<PowerUpEffects>();
+            var health=player.GetComponent<PlayerHealth>();
+            if(effects==null || !effects.isActiveAndEnabled || health==null || health.IsDead)return;
+            effects.Activate(kind);
+            DamageNumber.Create(player.position+Vector3.up*1.5f,PowerUpEffects.NameOf(kind)+" "+effects.Remaining.ToString("F0")+"s",PowerUpEffects.ColorOf(kind));
             GameAudio.Play(GameAudio.Sfx.Pickup);
             HitImpact.Spawn(transform.position, Vector3.up, 1.2f);
             Destroy(gameObject);
@@ -130,12 +144,12 @@ public class PowerUp : MonoBehaviour
     {
         if (coreMat != null)
         {
-            var c = coreMat.color; c.a = a; coreMat.color = c;
+            var c = PowerUpEffects.ColorOf(kind)*a; coreMat.color = c;
             if (coreMat.HasProperty("_BaseColor")) coreMat.SetColor("_BaseColor", c);
         }
         if (shellMat != null)
         {
-            var c = shellMat.color; c.a = a * 0.7f; shellMat.color = c;
+            var c = PowerUpEffects.ColorOf(kind)*(a*.7f); shellMat.color = c;
             if (shellMat.HasProperty("_BaseColor")) shellMat.SetColor("_BaseColor", c);
         }
     }

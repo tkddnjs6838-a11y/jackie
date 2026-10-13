@@ -12,6 +12,7 @@ public class SwordSweep : MonoBehaviour
 
     private float timer;
     private Material mat;
+    private Mesh ownedMesh;
 
 public static void Spawn(Vector3 origin, Vector3 forward, float radius, float angleDegrees, float innerRadius)
     {
@@ -68,6 +69,7 @@ public static void Spawn(Vector3 origin, Vector3 forward, float radius, float an
         }
 
         var mesh = new Mesh();
+        ownedMesh = mesh;
         mesh.vertices = verts;
         mesh.uv = uvs;
         mesh.triangles = tris;
@@ -106,6 +108,12 @@ public static void Spawn(Vector3 origin, Vector3 forward, float radius, float an
 
         if (timer >= lifetime)
             Destroy(gameObject);
+    }
+
+    void OnDestroy()
+    {
+        if (mat != null) Destroy(mat);
+        if (ownedMesh != null) Destroy(ownedMesh);
     }
 
     void Apply(float strength)

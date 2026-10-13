@@ -1,213 +1,151 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.InputSystem;
 
-/// <summary>
-/// Every so many kills the run pauses and offers three random upgrades to pick from.
-/// This is what turns the game from a fixed countdown into a build that grows.
-/// </summary>
-public class UpgradeSystem : MonoBehaviour
+// Only a collected augment crate can open this screen; kills never open it.
+public sealed class UpgradeSystem : MonoBehaviour
 {
-    private class Upgrade
+    public GameObject panel; // Legacy scene overlay, kept hidden for scene compatibility.
+    GameObject choicePanel;
+    CharacterGrowth recipient;
+    GameObject inventoryPanel;
+    readonly Text[] inventoryRows=new Text[8];
+    Text emptyInventory;
+    public bool InventoryOpen {get;private set;}
+    public GameObject InventoryPanel=>inventoryPanel;
+    CursorLockMode inventoryLock;
+    bool inventoryCursor;
+    readonly List<CharacterGrowth.Kind> offered=new List<CharacterGrowth.Kind>();
+    readonly Button[] buttons=new Button[3];
+    readonly Text[] labels=new Text[3];
+    public bool Choosing { get; private set; }
+    public IReadOnlyList<CharacterGrowth.Kind> Offered=>offered;
+    public GameObject ChoicePanel=>choicePanel;
+    CursorLockMode previousLock;
+    bool previousCursor;
+    void Awake()=>CancelChoices();
+    void OnDestroy(){if(choicePanel!=null)Destroy(choicePanel);if(inventoryPanel!=null)Destroy(inventoryPanel);}
+    void Update()
     {
-        public string Title;
-        public string Description;
-        public System.Action Apply;
-        public System.Func<bool> Available;
+        if(Keyboard.current==null)return;
+        if(Keyboard.current.tabKey.wasPressedThisFrame)ToggleInventory();
+        else if(InventoryOpen && Keyboard.current.escapeKey.wasPressedThisFrame)CloseInventory();
     }
-
-    [Header("Milestones")]
-    // Upgrades are milestone rewards, not a steady drip: health orbs cover the
-    // moment-to-moment recovery, and a build-changing pick only lands at these kill
-    // counts. Which three are offered is still random.
-    public int[] upgradeAtKills = new int[] { 50, 100, 200, 300 };
-
-    [Header("UI")]
-    public GameObject panel;
-    public Text headerText;
-    public Button[] choiceButtons = new Button[3];
-    public Text[] choiceTitles = new Text[3];
-    public Text[] choiceDescriptions = new Text[3];
-
-    private readonly List<Upgrade> pool = new List<Upgrade>();
-    private readonly List<Upgrade> offered = new List<Upgrade>();
-    private int kills;
-    private int nextMilestone;
-    private int taken;
-    private bool choosing;
-
-    private PlayerAutoAttack attack;
-    private PlayerController movement;
-    private PlayerHealth health;
-    private PlayerDash dash;
-
-    void Awake()
+    public bool ToggleInventory()
     {
-        var player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null)
+        if(InventoryOpen){CloseInventory();return true;}
+        if(Choosing || InventoryOpen || Time.timeScale<=0 || RunStats.Instance==null || !RunStats.Instance.Running)return false;
+        var growth=FindFirstObjectByType<CharacterGrowth>();
+        if(growth==null || growth.GetComponent<PlayerHealth>()==null || growth.GetComponent<PlayerHealth>().IsDead)return false;
+        EnsureInventoryUI();int row=0;
+        foreach(CharacterGrowth.Kind kind in System.Enum.GetValues(typeof(CharacterGrowth.Kind)))
         {
-            attack = player.GetComponent<PlayerAutoAttack>();
-            movement = player.GetComponent<PlayerController>();
-            health = player.GetComponent<PlayerHealth>();
-            dash = player.GetComponent<PlayerDash>();
+            if(growth.Level(kind)==0)continue;
+            inventoryRows[row].text=growth.OwnedDescription(kind);inventoryRows[row++].gameObject.SetActive(true);
         }
-
-        BuildPool();
-        if (panel != null) panel.SetActive(false);
-
-        for (int i = 0; i < choiceButtons.Length; i++)
+        for(int i=row;i<inventoryRows.Length;i++)inventoryRows[i].gameObject.SetActive(false);
+        emptyInventory.gameObject.SetActive(row==0);
+        inventoryLock=Cursor.lockState;inventoryCursor=Cursor.visible;
+        InventoryOpen=true;inventoryPanel.SetActive(true);Time.timeScale=0;
+        Cursor.lockState=CursorLockMode.None;Cursor.visible=true;return true;
+    }
+    public void CloseInventory()
+    {
+        if(!InventoryOpen)return;
+        InventoryOpen=false;if(inventoryPanel!=null)inventoryPanel.SetActive(false);
+        if(RunStats.Instance!=null && RunStats.Instance.Running)
         {
-            int index = i;
-            if (choiceButtons[i] != null)
-                choiceButtons[i].onClick.AddListener(delegate { Choose(index); });
-        }
-    }
-
-    void OnEnable()
-    {
-        Enemy.OnEnemyDied += HandleEnemyDied;
-    }
-
-    void OnDisable()
-    {
-        Enemy.OnEnemyDied -= HandleEnemyDied;
-    }
-
-    void BuildPool()
-    {
-        pool.Clear();
-        if (attack == null) return;
-
-        pool.Add(new Upgrade {
-            Title = "SHARPER BLADE",
-            Description = "Attack damage +8",
-            Apply = delegate { attack.manualAttackDamage += 8f; },
-            Available = delegate { return true; }
-        });
-        pool.Add(new Upgrade {
-            Title = "QUICK HANDS",
-            Description = "Attack 15% faster",
-            Apply = delegate { attack.manualAttackCooldown = Mathf.Max(0.15f, attack.manualAttackCooldown * 0.85f); },
-            Available = delegate { return attack.manualAttackCooldown > 0.16f; }
-        });
-        pool.Add(new Upgrade {
-            Title = "LONG REACH",
-            Description = "Attack range +0.4m",
-            Apply = delegate { attack.manualAttackRange += 0.4f; },
-            Available = delegate { return attack.manualAttackRange < 6f; }
-        });
-        pool.Add(new Upgrade {
-            Title = "WIDE SWING",
-            Description = "Attack arc +25 degrees",
-            Apply = delegate { attack.attackAngle = Mathf.Min(340f, attack.attackAngle + 25f); },
-            Available = delegate { return attack.attackAngle < 340f; }
-        });
-        pool.Add(new Upgrade {
-            Title = "LIGHT FEET",
-            Description = "Move speed +0.9",
-            Apply = delegate { if (movement != null) movement.moveSpeed += 0.9f; },
-            Available = delegate { return movement != null && movement.moveSpeed < 14f; }
-        });
-        pool.Add(new Upgrade {
-            Title = "TOUGH HIDE",
-            Description = "Max health +25, healed now",
-            Apply = delegate { if (health != null) health.AddMaxHealth(25f); },
-            Available = delegate { return health != null; }
-        });
-        pool.Add(new Upgrade {
-            Title = "BLOOD EDGE",
-            Description = "Heal 3 per connecting swing",
-            // capped: lifesteal is already limited per second, and stacking it endlessly
-            // was what made the player unkillable while attacking
-            Apply = delegate { attack.lifestealPerHit += 3f; attack.lifestealPerSecondCap += 1.5f; },
-            Available = delegate { return attack.lifestealPerHit < 9f; }
-        });
-        pool.Add(new Upgrade {
-            Title = "SECOND WIND",
-            Description = "Dash cooldown -0.4s",
-            Apply = delegate { if (dash != null) dash.cooldown = Mathf.Max(0.5f, dash.cooldown - 0.4f); },
-            Available = delegate { return dash != null && dash.cooldown > 0.55f; }
-        });
-    }
-
-    void HandleEnemyDied(Enemy enemy)
-    {
-        if (enemy.isBoss || choosing) return;
-        if (RunStats.Instance != null && !RunStats.Instance.Running) return;
-
-        // an elite pays out immediately: that payout is the whole reason to chase one
-        if (enemy.GetComponent<EliteMarker>() != null)
-        {
-            kills++;
-            Offer();
-            return;
-        }
-
-        kills++;
-        if (upgradeAtKills == null) return;
-
-        if (nextMilestone < upgradeAtKills.Length && kills >= upgradeAtKills[nextMilestone])
-        {
-            nextMilestone++;
-            Offer();
+            Time.timeScale=1;Cursor.lockState=inventoryLock;Cursor.visible=inventoryCursor;
         }
     }
-
-    void Offer()
+    void EnsureInventoryUI()
     {
-        if (panel == null) return;
-
-        var candidates = new List<Upgrade>();
-        foreach (var u in pool)
-            if (u.Available == null || u.Available()) candidates.Add(u);
-        if (candidates.Count == 0) return;
-
-        offered.Clear();
-        for (int i = 0; i < choiceButtons.Length && candidates.Count > 0; i++)
+        if(inventoryPanel!=null)return;
+        inventoryPanel=new GameObject("OwnedAugments",typeof(RectTransform),typeof(Canvas),typeof(CanvasScaler),typeof(GraphicRaycaster),typeof(Image));
+        var canvas=inventoryPanel.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=190;
+        var scaler=inventoryPanel.GetComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1280,720);scaler.matchWidthOrHeight=.5f;
+        inventoryPanel.GetComponent<Image>().color=new Color(.015f,.025f,.045f,.96f);
+        var font=Resources.Load<Font>("UI/AugmentKorean");
+        MakeText(inventoryPanel.transform,"Title","보유 증강",font,36,new Vector2(0,290),new Vector2(1100,55));
+        MakeText(inventoryPanel.transform,"Hint","이번 판에 획득한 증강 · 일시 효과와 무기별 보정 제외",font,20,new Vector2(0,240),new Vector2(1100,40));
+        emptyInventory=MakeText(inventoryPanel.transform,"Empty","아직 획득한 증강이 없습니다.\n증강 상자를 주워 효과를 선택하세요.",font,25,Vector2.zero,new Vector2(1100,150));
+        for(int i=0;i<inventoryRows.Length;i++)
         {
-            int pick = Random.Range(0, candidates.Count);
-            offered.Add(candidates[pick]);
-            candidates.RemoveAt(pick);
+            inventoryRows[i]=MakeText(inventoryPanel.transform,"Owned"+i,"",font,22,new Vector2(i%2==0?-285:285,150-(i/2)*115),new Vector2(530,105));
+            inventoryRows[i].alignment=TextAnchor.MiddleLeft;
         }
+        var close=new GameObject("Close",typeof(RectTransform),typeof(Image),typeof(Button));close.transform.SetParent(inventoryPanel.transform,false);
+        var rect=close.GetComponent<RectTransform>();rect.anchorMin=rect.anchorMax=rect.pivot=new Vector2(.5f,.5f);rect.anchoredPosition=new Vector2(0,-290);rect.sizeDelta=new Vector2(360,55);
+        close.GetComponent<Image>().color=new Color(.12f,.22f,.34f);close.GetComponent<Button>().onClick.AddListener(CloseInventory);
+        MakeText(close.transform,"Label","닫기  ·  Tab / Esc",font,22,Vector2.zero,new Vector2(340,50));
+    }
 
-        for (int i = 0; i < choiceButtons.Length; i++)
+    public bool TryOffer(CharacterGrowth growth)
+    {
+        if(Choosing || InventoryOpen || Time.timeScale<=0 || RunStats.Instance==null || !RunStats.Instance.Running || growth==null)return false;
+        var health=growth.GetComponent<PlayerHealth>();
+        if(health==null || health.IsDead)return false;
+        var candidates=new List<CharacterGrowth.Kind>();
+        foreach(CharacterGrowth.Kind kind in System.Enum.GetValues(typeof(CharacterGrowth.Kind)))
+            if(growth.CanCollect(kind))candidates.Add(kind);
+        if(candidates.Count==0)return false;
+        EnsureUI();offered.Clear();recipient=growth;
+        for(int i=0;i<3;i++)
         {
-            bool has = i < offered.Count;
-            if (choiceButtons[i] != null) choiceButtons[i].gameObject.SetActive(has);
-            if (!has) continue;
-            if (choiceTitles[i] != null) choiceTitles[i].text = offered[i].Title;
-            if (choiceDescriptions[i] != null) choiceDescriptions[i].text = offered[i].Description;
+            buttons[i].gameObject.SetActive(true);
+            if(candidates.Count==0){buttons[i].gameObject.SetActive(false);continue;}
+            int index=Random.Range(0,candidates.Count);var kind=candidates[index];candidates.RemoveAt(index);offered.Add(kind);
+            labels[i].text=growth.ChoiceDescription(kind);
         }
-
-        if (headerText != null) headerText.text = "CHOOSE AN UPGRADE     " + (taken + 1);
-
-        choosing = true;
-        panel.SetActive(true);
+        previousLock=Cursor.lockState;previousCursor=Cursor.visible;
+        Choosing=true;choicePanel.SetActive(true);Time.timeScale=0;
+        Cursor.lockState=CursorLockMode.None;Cursor.visible=true;
         GameAudio.Play(GameAudio.Sfx.UpgradeOpen);
-        Time.timeScale = 0f;
-        Cursor.lockState = CursorLockMode.None;
-        Cursor.visible = true;
+        return true;
     }
-
-    void Choose(int index)
+    public bool Choose(int index)
     {
-        if (!choosing || index < 0 || index >= offered.Count) return;
-
-        offered[index].Apply();
-        GameAudio.Play(GameAudio.Sfx.UpgradePick);
-        taken++;
-        choosing = false;
-        if (panel != null) panel.SetActive(false);
-
-        // only hand time back if nothing else (death, victory) has taken over the pause
-        if (RunStats.Instance == null || RunStats.Instance.Running)
-        {
-            Time.timeScale = 1f;
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
-        }
+        if(!Choosing || index<0 || index>=offered.Count || recipient==null || RunStats.Instance==null || !RunStats.Instance.Running)return false;
+        if(!recipient.TryApplyChoice(offered[index]))return false;
+        CancelChoices();
+        // Resume normal combat even if the crate was touched during a brief hit stop.
+        Time.timeScale=1;Cursor.lockState=previousLock;Cursor.visible=previousCursor;
+        return true;
     }
-
-    public int Taken { get { return taken; } }
-    public bool Choosing { get { return choosing; } }
+    public void CancelChoices()
+    {
+        Choosing=false;recipient=null;offered.Clear();
+        InventoryOpen=false;if(inventoryPanel!=null)inventoryPanel.SetActive(false);
+        if(panel!=null)panel.SetActive(false);
+        if(choicePanel!=null)choicePanel.SetActive(false);
+        // GameFlowManager owns time and cursor when the run ends.
+    }
+    void EnsureUI()
+    {
+        if(choicePanel!=null)return;
+        choicePanel=new GameObject("AugmentChoice",typeof(RectTransform),typeof(Canvas),typeof(CanvasScaler),typeof(GraphicRaycaster),typeof(Image));
+        var canvas=choicePanel.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=200;
+        var scaler=choicePanel.GetComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1280,720);scaler.matchWidthOrHeight=.5f;
+        choicePanel.GetComponent<Image>().color=new Color(.015f,.025f,.045f,.94f);
+        var font=Resources.Load<Font>("UI/AugmentKorean");
+        MakeText(choicePanel.transform,"Title","증강을 선택하세요",font,36,new Vector2(0,265),new Vector2(1100,60));
+        MakeText(choicePanel.transform,"Hint","상자 1개 · 효과 1개 선택 · 이번 판 동안 유지",font,20,new Vector2(0,212),new Vector2(1100,45));
+        for(int i=0;i<3;i++)
+        {
+            var card=new GameObject("Choice"+i,typeof(RectTransform),typeof(Image),typeof(Button));card.transform.SetParent(choicePanel.transform,false);
+            var rect=card.GetComponent<RectTransform>();rect.anchorMin=rect.anchorMax=rect.pivot=new Vector2(.5f,.5f);rect.sizeDelta=new Vector2(350,330);rect.anchoredPosition=new Vector2((i-1)*380,-5);
+            card.GetComponent<Image>().color=new Color(.12f,.22f,.34f);
+            buttons[i]=card.GetComponent<Button>();int selected=i;buttons[i].onClick.AddListener(()=>Choose(selected));
+            labels[i]=MakeText(card.transform,"Effect","",font,23,Vector2.zero,new Vector2(310,295));
+        }
+        MakeText(choicePanel.transform,"Footer","원하는 카드를 누르면 전투가 이어집니다",font,20,new Vector2(0,-245),new Vector2(1100,45));
+    }
+    static Text MakeText(Transform parent,string name,string content,Font font,int size,Vector2 at,Vector2 bounds)
+    {
+        var go=new GameObject(name,typeof(RectTransform),typeof(Text));go.transform.SetParent(parent,false);
+        var rect=go.GetComponent<RectTransform>();rect.anchorMin=rect.anchorMax=rect.pivot=new Vector2(.5f,.5f);rect.anchoredPosition=at;rect.sizeDelta=bounds;
+        var text=go.GetComponent<Text>();text.font=font;text.fontSize=size;text.color=Color.white;text.alignment=TextAnchor.MiddleCenter;text.text=content;text.raycastTarget=false;
+        return text;
+    }
 }

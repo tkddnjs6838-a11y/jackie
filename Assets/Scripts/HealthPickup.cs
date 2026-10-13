@@ -44,6 +44,8 @@ public class HealthPickup : MonoBehaviour
     void OnDestroy()
     {
         ActiveCount--;
+        if (coreMat != null) Destroy(coreMat);
+        if (haloMat != null) Destroy(haloMat);
     }
 
     void Awake()
@@ -92,6 +94,7 @@ public class HealthPickup : MonoBehaviour
 
     void Update()
     {
+        if (Time.timeScale <= 0f) return;
         age += Time.deltaTime;
         if (age >= lifetime) { Destroy(gameObject); return; }
 

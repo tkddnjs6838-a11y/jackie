@@ -54,6 +54,14 @@ self = GetComponent<Enemy>();
     {
         // never leave the crowd permanently shielded if this dies mid-frame
         ReleaseAll();
+        foreach (var tether in tethers) if (tether != null) tether.enabled = false;
+        if (auraRing != null) auraRing.enabled = false;
+    }
+
+    void OnEnable()
+    {
+        if (auraRing != null) auraRing.enabled = true;
+        refreshTimer = 0f;
     }
 
 void OnDestroy()
@@ -65,7 +73,7 @@ void OnDestroy()
     void ReleaseAll()
     {
         foreach (var e in shielded)
-            if (e != null) e.damageTakenMultiplier = 1f;
+            if (e != null) e.RemoveShield(this);
         shielded.Clear();
     }
 
@@ -85,17 +93,17 @@ void Update()
     {
         ReleaseAll();
 
-        var all = Object.FindObjectsByType<Enemy>(FindObjectsSortMode.None);
+        var all = Enemy.ActiveEnemies;
         foreach (var e in all)
         {
-            if (e == null || e == self || e.isBoss) continue;
+            if (e == null || e == self || e.isBoss || e.IsDying) continue;
             if (shielded.Count >= maxShielded) break;
 
             Vector3 flat = e.transform.position - transform.position;
             flat.y = 0f;
             if (flat.magnitude > auraRadius) continue;
 
-            e.damageTakenMultiplier = 1f - Mathf.Clamp01(damageReduction);
+            e.SetShield(this, damageReduction);
             shielded.Add(e);
         }
     }

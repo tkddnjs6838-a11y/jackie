@@ -29,6 +29,7 @@ public class EliteMarker : MonoBehaviour
     private Transform halo;
     private Transform ring;
     private float bobPhase;
+    private readonly System.Collections.Generic.List<Material> ownedMaterials = new System.Collections.Generic.List<Material>();
 
     /// <summary>
     /// Applies the promotion. Call straight after Instantiate: Enemy re-reads maxHealth in
@@ -77,6 +78,7 @@ public class EliteMarker : MonoBehaviour
         if (template != null)
         {
             var mat = new Material(template);
+            ownedMaterials.Add(mat);
             mat.color = Gold;
             if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", Gold);
             if (mat.HasProperty("_EmissionColor")) mat.SetColor("_EmissionColor", Gold * 2.2f);
@@ -85,6 +87,11 @@ public class EliteMarker : MonoBehaviour
         mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         mr.receiveShadows = false;
         return go.transform;
+    }
+
+    void OnDestroy()
+    {
+        foreach (var material in ownedMaterials) if (material != null) Destroy(material);
     }
 
     void Update()

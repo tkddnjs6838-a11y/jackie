@@ -18,10 +18,12 @@ public class PlayerController : MonoBehaviour
     private float verticalVelocity;
     private float pitch = 10f;
     private bool hasSpeedParameter;
+    private PlayerDash dash;
 
     void Awake()
     {
         controller = GetComponent<CharacterController>();
+        dash = GetComponent<PlayerDash>();
 
         if (animator == null)
             animator = GetComponentInChildren<Animator>();
@@ -36,8 +38,9 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
+        if (Time.timeScale <= 0f) return;
         HandleLook();
-        HandleMove();
+        if (dash == null || !dash.IsDashing) HandleMove();
     }
 
     void HandleLook()
@@ -65,7 +68,7 @@ public class PlayerController : MonoBehaviour
         if (kb.aKey.isPressed) input.x -= 1f;
         input = Vector2.ClampMagnitude(input, 1f);
 
-        Vector3 move = (transform.right * input.x + transform.forward * input.y) * moveSpeed;
+        Vector3 move = (transform.right * input.x + transform.forward * input.y) * moveSpeed * (GetComponent<CharacterGrowth>()?.MoveMultiplier ?? 1f);
 
         if (controller.isGrounded && verticalVelocity < 0f)
             verticalVelocity = -2f;

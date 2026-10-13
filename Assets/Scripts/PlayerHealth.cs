@@ -10,8 +10,10 @@ public class PlayerHealth : MonoBehaviour
 
     private float invincibilityTimer;
     private bool isDead;
+    private PowerUpEffects effects;
+    public bool IsDead => isDead;
 
-    public bool IsInvincible { get { return invincibilityTimer > 0f; } }
+    public bool IsInvincible { get { return invincibilityTimer > 0f || (effects != null && effects.ShieldActive); } }
 
     /// <summary>Grants i-frames from outside, e.g. for the duration of a dash.</summary>
     public void GrantInvincibility(float duration)
@@ -36,6 +38,7 @@ public class PlayerHealth : MonoBehaviour
     void Awake()
     {
         currentHealth = maxHealth;
+        effects = GetComponent<PowerUpEffects>();
     }
 
     void Update()
@@ -46,10 +49,10 @@ public class PlayerHealth : MonoBehaviour
 
     public void TakeDamage(float amount)
     {
-        if (isDead || invincibilityTimer > 0f) return;
+        if (isDead || IsInvincible || amount <= 0f) return;
 
         invincibilityTimer = invincibilityDuration;
-        currentHealth -= amount;
+        currentHealth = Mathf.Max(0f, currentHealth - amount);
         GameAudio.Play(GameAudio.Sfx.PlayerHurt);
         Debug.Log("Player took " + amount + " damage. HP=" + currentHealth);
 

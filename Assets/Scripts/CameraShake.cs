@@ -16,6 +16,7 @@ public class CameraShake : MonoBehaviour
 
     void LateUpdate()
     {
+        if (Time.timeScale <= 0f) return;
         if (shakeTimer > 0f)
         {
             shakeTimer -= Time.deltaTime;

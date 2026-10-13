@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 1795994000695321399}
   - component: {fileID: 3720906173697506670}
   - component: {fileID: 1793974510015514303}
+  - component: {fileID: 1301295982429400856}
   m_Layer: 0
   m_Name: EnemyCharger
   m_TagString: Untagged
@@ -33,7 +34,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 6633877310778978086}
+  - {fileID: 3635091554672649076}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!136 &5312705100411079227
@@ -100,7 +101,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c90245a8083c9eb4fa482442374bbdcd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CreatureWaddle
-  body: {fileID: 6633877310778978086}
+  body: {fileID: 3635091554672649076}
   stepsPerMeter: 1.6
   minStepsPerSecond: 1.2
   bounceHeight: 0.07
@@ -133,7 +134,26 @@ MonoBehaviour:
   exposedDamageMultiplier: 2
   windUpColor: {r: 1, g: 0.85, b: 0.2, a: 1}
   exposedColor: {r: 1, g: 0.4, b: 0.4, a: 1}
---- !u!1001 &6600866626432420045
+--- !u!114 &1301295982429400856
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 264683850891831095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7f80fd06ad59445c7bcfb04235cb8f49, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyMeshLod
+  bindings:
+  - renderer: {fileID: 2466103833086318619}
+    filter: {fileID: 422682056058088657}
+    levels:
+    - {fileID: -8006812049289700604, guid: 5349601fc9e0d7a4bacd2387fa4e2272, type: 3}
+    - {fileID: 4300000, guid: 3080d76b814044e2d9a702fdf5422b56, type: 2}
+    - {fileID: 4300000, guid: 8b023d84727394f638fec37fdd0864ad, type: 2}
+--- !u!1001 &3889080375639819423
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -206,8 +226,18 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 5349601fc9e0d7a4bacd2387fa4e2272, type: 3}
---- !u!4 &6633877310778978086 stripped
+--- !u!33 &422682056058088657 stripped
+MeshFilter:
+  m_CorrespondingSourceObject: {fileID: -5754084199372789682, guid: 5349601fc9e0d7a4bacd2387fa4e2272, type: 3}
+  m_PrefabInstance: {fileID: 3889080375639819423}
+  m_PrefabAsset: {fileID: 0}
+--- !u!23 &2466103833086318619 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: -7511558181221131132, guid: 5349601fc9e0d7a4bacd2387fa4e2272, type: 3}
+  m_PrefabInstance: {fileID: 3889080375639819423}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &3635091554672649076 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 5349601fc9e0d7a4bacd2387fa4e2272, type: 3}
-  m_PrefabInstance: {fileID: 6600866626432420045}
+  m_PrefabInstance: {fileID: 3889080375639819423}
   m_PrefabAsset: {fileID: 0}

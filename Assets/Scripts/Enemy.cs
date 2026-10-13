@@ -2,15 +2,17 @@ using UnityEngine;
 
 public class Enemy : MonoBehaviour
 {
+    static readonly Unity.Profiling.ProfilerMarker CostMarker = new Unity.Profiling.ProfilerMarker("Combat.Damage");
+
     public static bool BossDefeated { get; private set; }
     public static event System.Action<Enemy> OnEnemyDied;
     public static event System.Action OnBossDefeated;
     public static event System.Action<Enemy> OnBossSpawned;
 
     public float CurrentHealth { get { return currentHealth; } }
-    
+
     public bool IsDying { get { return isDying; } }
-public float HealthFraction { get { return maxHealth > 0f ? Mathf.Clamp01(currentHealth / maxHealth) : 0f; } }
+    public float HealthFraction { get { return maxHealth > 0f ? Mathf.Clamp01(currentHealth / maxHealth) : 0f; } }
 
     public static void ResetRunState()
     {
@@ -36,9 +38,9 @@ public float HealthFraction { get { return maxHealth > 0f ? Mathf.Clamp01(curren
     public Color variantColor = Color.white;
     [Tooltip("Keep the imported model's textured material instead of replacing it with a flat tint.")]
     public bool preserveModelColors = false;
-    
+
     public float corpseLifetime = 5f;
-public float squishDuration = 0.4f;
+    public float squishDuration = 0.4f;
     public float hitFlashDuration = 0.18f;
     public float hitShakeAmount = 0.03f;
 
@@ -46,9 +48,24 @@ public float squishDuration = 0.4f;
     // damageTakenMultiplier lets a Warden shield its neighbours,
     // externalMovement hands the chase over to a Charger.
     [HideInInspector] public float damageTakenMultiplier = 1f;
-    
+
     [HideInInspector] public bool contactDamageBalanced;
-[HideInInspector] public bool externalMovement;
+    [HideInInspector] public bool externalMovement;
+
+    private readonly System.Collections.Generic.Dictionary<EnemyWarden, float> shields = new System.Collections.Generic.Dictionary<EnemyWarden, float>();
+    public void SetShield(EnemyWarden source, float reduction) { shields[source] = Mathf.Clamp01(reduction); }
+    public void RemoveShield(EnemyWarden source) { shields.Remove(source); }
+    public float EffectiveDamageMultiplier
+    {
+        get
+        {
+            float protection = 0f;
+            foreach (var pair in shields)
+                if (pair.Key != null && pair.Key.isActiveAndEnabled)
+                    protection = Mathf.Max(protection, pair.Value);
+            return Mathf.Max(0f, damageTakenMultiplier) * (1f - protection);
+        }
+    }
 
     public Transform Player { get { return player; } }
     public float ContactGap { get { return contactGap; } }
@@ -60,24 +77,41 @@ public float squishDuration = 0.4f;
     private bool isDying;
     private Color baseColor = Color.white;
     private bool hasBaseColor;
-    private float cachedRadius = -1f;
-    
-    
+    private static readonly System.Collections.Generic.HashSet<Enemy> activeEnemies = new System.Collections.Generic.HashSet<Enemy>();
+    public static System.Collections.Generic.IReadOnlyCollection<Enemy> ActiveEnemies => activeEnemies;
+
+    public static int AliveRegularCount
+    {
+        get
+        {
+            int count = 0;
+            foreach (var enemy in activeEnemies)
+                if (enemy != null && !enemy.isBoss && !enemy.isDying) count++;
+            return count;
+        }
+    }
+
+    void OnEnable() { if (!isDying) activeEnemies.Add(this); }
+    void OnDisable() { activeEnemies.Remove(this); }
+
+
     private WaxShardBurst shardBurst;
-private WaxCrackVisual crackVisual;
-private Coroutine flashRoutine;
+    private WaxCrackVisual crackVisual;
+    private Coroutine flashRoutine;
 
     void Awake()
     {
-        
         crackVisual = GetComponent<WaxCrackVisual>();
         if (crackVisual == null)
-            
+            crackVisual = gameObject.AddComponent<WaxCrackVisual>();
+
+        crackVisual.ClearInheritedVisuals();
+
         shardBurst = GetComponent<WaxShardBurst>();
         if (shardBurst == null)
             shardBurst = gameObject.AddComponent<WaxShardBurst>();
-crackVisual = gameObject.AddComponent<WaxCrackVisual>();
-currentHealth = maxHealth;
+
+        currentHealth = maxHealth;
         var playerObj = GameObject.FindGameObjectWithTag("Player");
         if (playerObj != null)
             player = playerObj.transform;
@@ -137,7 +171,7 @@ currentHealth = maxHealth;
         }
     }
 
-Color InnerSlimeColor()
+    Color InnerSlimeColor()
     {
         Color shell = hasBaseColor ? baseColor : new Color(0.95f, 0.3f, 0.75f, 1f);
         Color.RGBToHSV(shell, out float hue, out float saturation, out float value);
@@ -145,16 +179,39 @@ Color InnerSlimeColor()
     }
 
 
+    Vector3 knockbackVelocity;
+    public bool IsKnockedBack => knockbackVelocity.sqrMagnitude>.01f;
+    public int KnockbackApplications { get; private set; }
+    public void ApplyKnockback(Vector3 direction,float speed)
+    {
+        if(isDying || speed<=0)return;
+        direction.y=0;
+        float resistance=isBoss?.12f:Mathf.Clamp(.55f/Mathf.Max(.55f,BodyRadius()),.25f,1f);
+        knockbackVelocity=direction.normalized*speed*resistance;
+        KnockbackApplications++;
+    }
+    void TickKnockback()
+    {
+        float speed=knockbackVelocity.magnitude;
+        if(speed<=.001f)return;
+        float next=Mathf.Max(0,speed-32f*Time.deltaTime);
+        float duration=Mathf.Min(Time.deltaTime,speed/32f);
+        MoveWithObstacles(knockbackVelocity/speed*((speed+next)*.5f*duration));
+        knockbackVelocity=knockbackVelocity/speed*next;
+    }
+
     void Update()
     {
-        if (isDying || player == null) return;
+        if (Time.timeScale <= 0f || player == null) return;
+        bool pushed=IsKnockedBack;
+        TickKnockback();
+        if(isDying)return;
 
         Vector3 dir = player.position - transform.position;
         dir.y = 0f;
-        float dist = dir.magnitude;
         float reach = SurfaceDistanceToPlayer();
 
-        if (reach > contactGap && !externalMovement)
+        if (reach > contactGap && !externalMovement && !pushed)
         {
             dir.Normalize();
             // PowerUpEffects.EnemySpeedScale is 1 unless the player is holding a SLOW pickup
@@ -177,7 +234,7 @@ Color InnerSlimeColor()
         // the first hit, so running into a monster and moving on never cost anything.
         contactTimer += Time.deltaTime;
 
-        if (contactTimer >= contactInterval && SurfaceDistanceToPlayer() <= contactGap + contactGrace)
+        if (!pushed && contactTimer >= contactInterval && SurfaceDistanceToPlayer() <= contactGap + contactGrace)
         {
             contactTimer = 0f;
             var health = player.GetComponent<PlayerHealth>();
@@ -201,52 +258,55 @@ Color InnerSlimeColor()
 
     float BodyRadius()
     {
-        if (cachedRadius >= 0f) return cachedRadius;
-
         var capsule = GetComponent<CapsuleCollider>();
         if (capsule != null)
         {
             var s = transform.lossyScale;
-            cachedRadius = capsule.radius * Mathf.Max(s.x, s.z);
+            return capsule.radius * Mathf.Max(Mathf.Abs(s.x), Mathf.Abs(s.z));
         }
-        else
-        {
-            cachedRadius = 0.5f;
-        }
-        return cachedRadius;
+        return 0.5f;
     }
 
     public void TakeDamage(float amount)
     {
-        if (isDying) return;
+        TakeDamage(amount, player != null ? player.position + Vector3.up * 0.7f : transform.position - transform.forward);
+    }
 
-        amount *= Mathf.Max(0f, damageTakenMultiplier);
+    public void TakeDamage(float amount, Vector3 contact, float dentStrength=1f)
+    {
+        using (CostMarker.Auto())
+        {
+            if (isDying || amount <= 0f) return;
 
-        var waddle = GetComponent<CreatureWaddle>();
-        if (waddle != null)
-            waddle.PunchSquish();
-        
+            amount *= EffectiveDamageMultiplier;
 
-        if (crackVisual != null)
-            
+            if (amount <= 0f) return;
+            currentHealth = Mathf.Max(0f, currentHealth - amount);
+            var dent = GetComponent<WaxDent>();
+            if (dent == null) dent = gameObject.AddComponent<WaxDent>();
+            if (!dent.Punch(contact, 1f - HealthFraction, currentHealth <= 0f, dentStrength))
+            {
+                var waddle = GetComponent<CreatureWaddle>();
+                if (waddle != null) waddle.PunchSquish();
+            }
+            if (crackVisual != null)
+                crackVisual.SetDamage(1f - HealthFraction);
+            if (shardBurst != null && currentHealth > 0f)
+                shardBurst.Burst(hasBaseColor ? baseColor : Color.white, false);
 
-        if (shardBurst != null)
-            shardBurst.Burst(hasBaseColor ? baseColor : Color.white, currentHealth <= 0f);
-crackVisual.SetDamage(1f - HealthFraction);
-currentHealth -= amount;
+            // put the number at the body's mid-height so it is not down at a giant's ankles
+            var col = GetComponent<Collider>();
+            Vector3 numberPos = col != null ? col.bounds.center : transform.position + Vector3.up * 1f;
+            DamageNumber.Create(numberPos, amount.ToString("F0"), Color.yellow);
+            if (CameraShake.Instance != null)
+                CameraShake.Instance.Shake(0.08f, hitShakeAmount);
 
-        // put the number at the body's mid-height so it is not down at a giant's ankles
-        var col = GetComponent<Collider>();
-        Vector3 numberPos = col != null ? col.bounds.center : transform.position + Vector3.up * 1f;
-        DamageNumber.Create(numberPos, amount.ToString("F0"), Color.yellow);
-        if (CameraShake.Instance != null)
-            CameraShake.Instance.Shake(0.08f, hitShakeAmount);
+            if (flashRoutine != null) StopCoroutine(flashRoutine);
+            flashRoutine = StartCoroutine(HitFlash());
 
-        if (flashRoutine != null) StopCoroutine(flashRoutine);
-        flashRoutine = StartCoroutine(HitFlash());
-
-        if (currentHealth <= 0f)
-            Die();
+            if (currentHealth <= 0f)
+                Die();
+        }
     }
 
     System.Collections.IEnumerator HitFlash()
@@ -262,12 +322,13 @@ currentHealth -= amount;
             ClearTint();
     }
 
-void Die()
+    void Die()
     {
-        
+
         SetTint(InnerSlimeColor());
         if (crackVisual != null) crackVisual.ShowCorpseCracks();
-isDying = true;
+        isDying = true;
+        activeEnemies.Remove(this);
         OnEnemyDied?.Invoke(this);
 
         if (isBoss)
@@ -281,17 +342,20 @@ isDying = true;
         StartCoroutine(SquishAndDestroy());
     }
 
-System.Collections.IEnumerator SquishAndDestroy()
+    System.Collections.IEnumerator SquishAndDestroy()
     {
         var col = GetComponent<Collider>();
         if (col != null) col.enabled = false;
 
         foreach (var behaviour in GetComponents<MonoBehaviour>())
         {
-            if (behaviour != this && !(behaviour is WaxCrackVisual))
+            if (behaviour != this && !(behaviour is WaxCrackVisual) && !(behaviour is WaxDent))
                 behaviour.enabled = false;
         }
 
+        // Let the impact dent become visible before the shell breaks and the contents flatten.
+        yield return new WaitForSeconds(0.07f);
+        if (shardBurst != null) shardBurst.Burst(hasBaseColor ? baseColor : Color.white, true);
         Vector3 startScale = transform.localScale;
         Vector3 endScale = new Vector3(startScale.x * 1.85f, startScale.y * 0.025f, startScale.z * 1.85f);
         float t = 0f;
@@ -305,12 +369,15 @@ System.Collections.IEnumerator SquishAndDestroy()
         }
 
         transform.localScale = endScale;
+        foreach (var animator in GetComponentsInChildren<Animator>()) animator.enabled = false;
+        var dent = GetComponent<WaxDent>();
+        if (dent != null) dent.FreezeSurface();
         yield return new WaitForSeconds(corpseLifetime);
         Destroy(gameObject);
     }
 
 
-void MoveWithObstacles(Vector3 displacement)
+    void MoveWithObstacles(Vector3 displacement)
     {
         float distance = displacement.magnitude;
         if (distance <= 0.0001f) return;
@@ -338,20 +405,20 @@ void MoveWithObstacles(Vector3 displacement)
         transform.position += slideDirection * slideDistance;
     }
 
-public void MoveAvoidingObstacles(Vector3 displacement)
+    public void MoveAvoidingObstacles(Vector3 displacement)
     {
         MoveWithObstacles(displacement);
     }
 
     public void RefreshConfiguredStatsAndColor()
     {
-        
+
         if (!contactDamageBalanced && !isBoss && GetComponent<EnemyCharger>() == null)
         {
             contactDamage *= 0.75f;
             contactDamageBalanced = true;
         }
-currentHealth = maxHealth;
+        currentHealth = maxHealth;
         if (preserveModelColors)
         {
             baseColor = Color.white;

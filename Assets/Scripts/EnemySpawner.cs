@@ -7,10 +7,11 @@ public class EnemySpawner : MonoBehaviour
     public GameObject bossPrefab;
     public Transform player;
     public float spawnRadius = 15f;
-    public float initialInterval = 2f;
-    public float minInterval = 0.4f;
-    public float intervalDecayPerMinute = 0.3f;
-    public int killsToSpawnBoss = 20;
+    public float initialInterval = 1.4f;
+    public float minInterval = 0.5f;
+    public float intervalDecayPerMinute = 0.2f;
+    public int killsToSpawnBoss = 40;
+    public float bossEarliestSeconds = 60f;
     public Text killCountText;
 
     [System.Serializable]
@@ -24,20 +25,19 @@ public class EnemySpawner : MonoBehaviour
     }
 
     [Header("Variants")]
-    
+    public Variant[] variants;
 
     [Header("Charger arrival")]
     [Tooltip("Guarantees one charger early so the player can learn its attack pattern.")]
-    public float firstChargerAtSeconds = 12f;
-public Variant[] variants;
+    public float firstChargerAtSeconds = 25f;
 
     [Header("Elites")]
     // The swarm has no targets in it, so every so often one spawn is promoted: tougher,
     // gold-ringed, and it pays out an upgrade when it dies. Interval-based rather than a
     // flat chance, so the player can feel one coming.
-    public float eliteInterval = 40f;
+    public float eliteInterval = 45f;
     public float eliteJitter = 12f;
-    public float eliteFirstAt = 25f;
+    public float eliteFirstAt = 45f;
     public int maxAliveElites = 2;
 
     [Header("Late-run escalation")]
@@ -50,29 +50,20 @@ public Variant[] variants;
     [Header("Swarm")]
     public int enemiesPerSpawn = 1;
     // hard ceiling so the swarm cannot tank the framerate; spawning pauses at the cap
-    public int maxAliveEnemies = 60;
+    public int maxAliveEnemies = 35;
 
     private float timer;
     private float elapsed;
     private int killCount;
-    
+
     private bool firstChargerSpawned;
-private bool bossSpawned;
-    private readonly System.Collections.Generic.List<Enemy> aliveEnemies = new System.Collections.Generic.List<Enemy>();
+    private bool bossSpawned;
     private float nextEliteAt = -1f;
 
-void Start()
+    void Start()
     {
-        initialInterval *= 0.8f;
-        minInterval *= 0.8f;
         UpdateKillCountText();
 
-        GameObject chargerPrefab = FindChargerPrefab();
-        if (chargerPrefab != null)
-        {
-            SpawnEnemy(chargerPrefab);
-            firstChargerSpawned = true;
-        }
     }
 
     void OnEnable()
@@ -87,18 +78,19 @@ void Start()
 
     void HandleEnemyDied(Enemy enemy)
     {
-        aliveEnemies.Remove(enemy);
-
         if (enemy.isBoss) return;
 
         killCount++;
         UpdateKillCountText();
 
-        if (!bossSpawned && killCount >= killsToSpawnBoss)
-        {
-            bossSpawned = true;
-            SpawnEnemy(bossPrefab);
-        }
+        TrySpawnBoss();
+    }
+
+    void TrySpawnBoss()
+    {
+        if (RunStats.Instance != null && RunStats.Instance.Running && Time.timeScale > 0f
+            && !bossSpawned && elapsed >= bossEarliestSeconds && killCount >= killsToSpawnBoss)
+            bossSpawned = SpawnEnemy(bossPrefab);
     }
 
     void UpdateKillCountText()
@@ -107,36 +99,30 @@ void Start()
             killCountText.text = "Kills: " + killCount;
     }
 
-void Update()
+    void Update()
     {
+        if (Time.timeScale <= 0f || RunStats.Instance == null || !RunStats.Instance.Running) return;
         elapsed += Time.deltaTime;
         timer += Time.deltaTime;
 
-        float currentInterval = Mathf.Max(minInterval,
-            initialInterval - (elapsed / 60f) * intervalDecayPerMinute);
+        float currentInterval = CurrentSpawnInterval;
 
         if (timer >= currentInterval)
         {
             timer = 0f;
+            TrySpawnBoss();
 
-            int dynamicAliveCap = Mathf.Min(maxAliveEnemies,
-                                           28 + Mathf.FloorToInt(elapsed / 60f) * 8);
-            int waveCount = Mathf.Min(3,
-                                     enemiesPerSpawn + Mathf.FloorToInt(elapsed / 90f));
-            int alive = aliveEnemies.Count;
+            int dynamicAliveCap = CurrentAliveCap;
+            int waveCount = CurrentWaveCount;
+            int alive = Enemy.AliveRegularCount;
 
             if (!firstChargerSpawned && elapsed >= firstChargerAtSeconds && alive < dynamicAliveCap)
             {
                 GameObject chargerPrefab = FindChargerPrefab();
-                if (chargerPrefab != null)
-                {
-                    SpawnEnemy(chargerPrefab);
-                    firstChargerSpawned = true;
-                    alive++;
-                }
+                firstChargerSpawned = SpawnEnemy(chargerPrefab);
             }
 
-            for (int i = 0; i < waveCount && alive + i < dynamicAliveCap; i++)
+            for (int i = 0; i < waveCount && Enemy.AliveRegularCount < dynamicAliveCap; i++)
                 SpawnEnemy(PickPrefab());
         }
 
@@ -154,6 +140,10 @@ void Update()
         return Mathf.Min(maxDamageMultiplier, 1f + hundreds * damagePerHundredKills);
     }
 
+    public float CurrentSpawnInterval => Mathf.Max(.1f, Mathf.Max(minInterval, initialInterval - elapsed / 60f * intervalDecayPerMinute));
+    public int CurrentAliveCap => Mathf.Min(maxAliveEnemies, 18 + Mathf.FloorToInt(elapsed / 60f) * 6);
+    public int CurrentWaveCount => Mathf.Min(3, enemiesPerSpawn + Mathf.FloorToInt(elapsed / 90f));
+
     public int KillCount { get { return killCount; } }
 
     /// <summary>
@@ -169,15 +159,15 @@ void Update()
         if (elapsed < nextEliteAt) return;
 
         int aliveElites = 0;
-        foreach (var e in aliveEnemies)
-            if (e != null && e.GetComponent<EliteMarker>() != null) aliveElites++;
+        foreach (var e in Enemy.ActiveEnemies)
+            if (e != null && !e.isBoss && e.GetComponent<EliteMarker>() != null) aliveElites++;
         if (aliveElites >= maxAliveElites) return;
 
         // pick the candidate furthest along the list that is still plain, preferring one
         // that is not already on top of the player
         Enemy best = null;
         float bestScore = -1f;
-        foreach (var e in aliveEnemies)
+        foreach (var e in Enemy.ActiveEnemies)
         {
             if (e == null || e.isBoss) continue;
             if (e.GetComponent<EliteMarker>() != null) continue;
@@ -223,9 +213,9 @@ void Update()
         return enemyPrefab;
     }
 
-void SpawnEnemy(GameObject prefab)
+    bool SpawnEnemy(GameObject prefab)
     {
-        if (prefab == null || player == null) return;
+        if (prefab == null || player == null) return false;
 
         Vector3 spawnPosition = player.position;
         bool foundClearPoint = false;
@@ -249,19 +239,19 @@ void SpawnEnemy(GameObject prefab)
             }
         }
 
-        if (!foundClearPoint) return;
+        if (!foundClearPoint) return false;
 
         var spawned = (GameObject)Instantiate(prefab, spawnPosition, Quaternion.identity);
         var enemy = spawned.GetComponent<Enemy>();
         if (enemy != null && !enemy.isBoss)
         {
             enemy.contactDamage *= CurrentDamageMultiplier();
-            aliveEnemies.Add(enemy);
         }
+        return true;
     }
 
 
-bool IsSpawnBlocked(Vector3 position)
+    bool IsSpawnBlocked(Vector3 position)
     {
         Collider[] overlaps = Physics.OverlapSphere(position + Vector3.up * 0.65f, 0.62f,
                                                      ~0, QueryTriggerInteraction.Ignore);
@@ -276,7 +266,7 @@ bool IsSpawnBlocked(Vector3 position)
     }
 
 
-GameObject FindChargerPrefab()
+    GameObject FindChargerPrefab()
     {
         if (variants == null) return null;
 

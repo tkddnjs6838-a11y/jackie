@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 1880543836559709038}
   - component: {fileID: 3534742365881578717}
   - component: {fileID: -2221985369914973697}
+  - component: {fileID: 3863651653111626392}
   m_Layer: 0
   m_Name: BossEnemy
   m_TagString: Untagged
@@ -142,6 +143,25 @@ MonoBehaviour:
   lastPattern: none
   slamCount: 0
   chargeCount: 0
+--- !u!114 &3863651653111626392
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9055999761049479570}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7f80fd06ad59445c7bcfb04235cb8f49, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyMeshLod
+  bindings:
+  - renderer: {fileID: 1277148804115880670}
+    filter: {fileID: 0}
+    levels:
+    - {fileID: 5461320835613783329, guid: c87dce0f3656df34a9eb3a67e8a504bb, type: 3}
+    - {fileID: 4300000, guid: dc5e776d056fe46f7b4da59e1cb40e96, type: 2}
+    - {fileID: 4300000, guid: 5e9e5447a80194f4ca97181c2f8f40ab, type: 2}
 --- !u!1001 &3837524139303331002
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -227,6 +247,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: c87dce0f3656df34a9eb3a67e8a504bb, type: 3}
+--- !u!137 &1277148804115880670 stripped
+SkinnedMeshRenderer:
+  m_CorrespondingSourceObject: {fileID: 2664098864995057252, guid: c87dce0f3656df34a9eb3a67e8a504bb, type: 3}
+  m_PrefabInstance: {fileID: 3837524139303331002}
+  m_PrefabAsset: {fileID: 0}
 --- !u!4 &3660061599841125201 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: c87dce0f3656df34a9eb3a67e8a504bb, type: 3}

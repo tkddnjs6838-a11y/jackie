@@ -8,6 +8,8 @@ using UnityEngine;
 [RequireComponent(typeof(Enemy))]
 public class EnemySplitter : MonoBehaviour
 {
+    static readonly Unity.Profiling.ProfilerMarker CostMarker = new Unity.Profiling.ProfilerMarker("Combat.Split");
+
     public int generation = 0;
     public int maxGenerations = 2;
     public int childCount = 2;
@@ -43,40 +45,47 @@ public class EnemySplitter : MonoBehaviour
         split = true;
         if (generation >= maxGenerations) return;
 
+        var spawner = FindFirstObjectByType<EnemySpawner>();
         for (int i = 0; i < childCount; i++)
+        {
+            if (spawner != null && Enemy.AliveRegularCount >= spawner.maxAliveEnemies) break;
             SpawnChild(i);
+        }
     }
 
     void SpawnChild(int index)
     {
-        float angle = (index / (float)Mathf.Max(1, childCount)) * Mathf.PI * 2f + Random.value;
-        Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * spreadRadius;
-        Vector3 at = transform.position + offset;
+        using (CostMarker.Auto())
+        {
+            float angle = (index / (float)Mathf.Max(1, childCount)) * Mathf.PI * 2f + Random.value;
+            Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * spreadRadius;
+            Vector3 at = transform.position + offset;
 
-        var terrain = Terrain.activeTerrain;
-        if (terrain != null) at.y = terrain.SampleHeight(at) + terrain.transform.position.y;
+            var terrain = Terrain.activeTerrain;
+            if (terrain != null) at.y = terrain.SampleHeight(at) + terrain.transform.position.y;
 
-        // clone this creature rather than a prefab, so a second-generation child
-        // inherits whatever the first generation already had
-        var child = Instantiate(gameObject, at, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
-        child.name = gameObject.name + "_split" + (generation + 1);
-        child.transform.localScale = transform.localScale * childScaleFactor;
+            // clone this creature rather than a prefab, so a second-generation child
+            // inherits whatever the first generation already had
+            var child = Instantiate(gameObject, at, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
+            child.name = gameObject.name + "_split" + (generation + 1);
+            child.transform.localScale = transform.localScale * childScaleFactor;
 
-        var childEnemy = child.GetComponent<Enemy>();
-        childEnemy.maxHealth = Mathf.Max(6f, enemy.maxHealth * childHealthFactor);
-        childEnemy.moveSpeed = enemy.moveSpeed * childSpeedFactor;
-        childEnemy.contactDamage = Mathf.Max(4f, enemy.contactDamage * childDamageFactor);
-        
-        childEnemy.randomizeColor = false;
-        childEnemy.variantColor = Color.Lerp(enemy.variantColor, Color.white,
-                                             0.22f * (generation + 1));
-        childEnemy.RefreshConfiguredStatsAndColor();
-childEnemy.contactGap = enemy.contactGap * childScaleFactor;
+            var childEnemy = child.GetComponent<Enemy>();
+            childEnemy.maxHealth = Mathf.Max(6f, enemy.maxHealth * childHealthFactor);
+            childEnemy.moveSpeed = enemy.moveSpeed * childSpeedFactor;
+            childEnemy.contactDamage = Mathf.Max(4f, enemy.contactDamage * childDamageFactor);
 
-        var childSplitter = child.GetComponent<EnemySplitter>();
-        childSplitter.generation = generation + 1;
+            childEnemy.randomizeColor = false;
+            childEnemy.variantColor = Color.Lerp(enemy.variantColor, Color.white,
+                                                 0.22f * (generation + 1));
+            childEnemy.RefreshConfiguredStatsAndColor();
+            childEnemy.contactGap = enemy.contactGap * childScaleFactor;
 
-        // a fresh clone should not think it has already split
-        childSplitter.split = false;
+            var childSplitter = child.GetComponent<EnemySplitter>();
+            childSplitter.generation = generation + 1;
+
+            // a fresh clone should not think it has already split
+            childSplitter.split = false;
+        }
     }
 }

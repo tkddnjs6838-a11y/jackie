@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 4367787391250977936}
   - component: {fileID: 2780334191670558722}
   - component: {fileID: 4383265246260390618}
+  - component: {fileID: 3866353358627172076}
   m_Layer: 0
   m_Name: EnemyWarden
   m_TagString: Untagged
@@ -33,7 +34,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 5397872891205817628}
+  - {fileID: 3069048292714665023}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!136 &2180785128856267365
@@ -100,7 +101,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c90245a8083c9eb4fa482442374bbdcd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CreatureWaddle
-  body: {fileID: 5397872891205817628}
+  body: {fileID: 3069048292714665023}
   stepsPerMeter: 1.6
   minStepsPerSecond: 1.2
   bounceHeight: 0.07
@@ -130,7 +131,26 @@ MonoBehaviour:
   tetherColor: {r: 0.55, g: 0.45, b: 1, a: 1}
   tetherWidth: 0.09
   bobSpeed: 2.4
---- !u!1001 &5576478570457723639
+--- !u!114 &3866353358627172076
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7444557371222423086}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7f80fd06ad59445c7bcfb04235cb8f49, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyMeshLod
+  bindings:
+  - renderer: {fileID: 4241370458334244688}
+    filter: {fileID: 2105618351803456410}
+    levels:
+    - {fileID: -8006812049289700604, guid: d11af6efa2e9dac488bbe2917205b2e4, type: 3}
+    - {fileID: 4300000, guid: bc4f1b27eae4d4c688df0a4011864679, type: 2}
+    - {fileID: 4300000, guid: fe43d48f84a5b469cb0e3332a4f46c20, type: 2}
+--- !u!1001 &3250976968618521556
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -203,8 +223,18 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: d11af6efa2e9dac488bbe2917205b2e4, type: 3}
---- !u!4 &5397872891205817628 stripped
+--- !u!33 &2105618351803456410 stripped
+MeshFilter:
+  m_CorrespondingSourceObject: {fileID: -5754084199372789682, guid: d11af6efa2e9dac488bbe2917205b2e4, type: 3}
+  m_PrefabInstance: {fileID: 3250976968618521556}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &3069048292714665023 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: d11af6efa2e9dac488bbe2917205b2e4, type: 3}
-  m_PrefabInstance: {fileID: 5576478570457723639}
+  m_PrefabInstance: {fileID: 3250976968618521556}
+  m_PrefabAsset: {fileID: 0}
+--- !u!23 &4241370458334244688 stripped
+MeshRenderer:
+  m_CorrespondingSourceObject: {fileID: -7511558181221131132, guid: d11af6efa2e9dac488bbe2917205b2e4, type: 3}
+  m_PrefabInstance: {fileID: 3250976968618521556}
   m_PrefabAsset: {fileID: 0}

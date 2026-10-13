@@ -9,6 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2877199353669373173}
+  - component: {fileID: 2067981807252496555}
   m_Layer: 0
   m_Name: BushProp
   m_TagString: Untagged
@@ -32,6 +33,25 @@ Transform:
   - {fileID: 7700743106462115140}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2067981807252496555
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 524767912570551538}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7f80fd06ad59445c7bcfb04235cb8f49, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyMeshLod
+  bindings:
+  - renderer: {fileID: 2491344021220967779}
+    filter: {fileID: 2978347612892786756}
+    levels:
+    - {fileID: -1901923605265949594, guid: 8c2e4596007f9f94285d49c92423ee69, type: 3}
+    - {fileID: 4300000, guid: 9e947924c30744d30872b57c52a6b3a6, type: 2}
+    - {fileID: 4300000, guid: e3a9e8309796e4c8b9f54ab38557a0ee, type: 2}
 --- !u!1 &3040648760948873640
 GameObject:
   m_ObjectHideFlags: 0

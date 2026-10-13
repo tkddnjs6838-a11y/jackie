@@ -9,6 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1678608957148928127}
+  - component: {fileID: 6361131691099396939}
   m_Layer: 0
   m_Name: PillarProp
   m_TagString: Untagged
@@ -32,6 +33,25 @@ Transform:
   - {fileID: 1624169767205347842}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &6361131691099396939
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2402424419253157186}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7f80fd06ad59445c7bcfb04235cb8f49, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyMeshLod
+  bindings:
+  - renderer: {fileID: 5925372709087427426}
+    filter: {fileID: 7219391254547153975}
+    levels:
+    - {fileID: -1901923605265949594, guid: ab16eb8aa1d0447489cd02d31cdeb66c, type: 3}
+    - {fileID: 4300000, guid: 94271064e9c024d94b8e6f85fd691c72, type: 2}
+    - {fileID: 4300000, guid: 567c8a82411b745dfb6d8465e505ef24, type: 2}
 --- !u!1 &8605192329594507158
 GameObject:
   m_ObjectHideFlags: 0

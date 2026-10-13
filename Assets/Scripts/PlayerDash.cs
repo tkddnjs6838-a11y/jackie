@@ -6,6 +6,7 @@ using UnityEngine.InputSystem;
 /// most of it, so being surrounded by the swarm is escapable with timing rather than
 /// simply fatal. Exposes CooldownFraction for the HUD.
 /// </summary>
+[DefaultExecutionOrder(-10)]
 [RequireComponent(typeof(CharacterController))]
 public class PlayerDash : MonoBehaviour
 {
@@ -39,6 +40,7 @@ public class PlayerDash : MonoBehaviour
 
     void Update()
     {
+        if (Time.timeScale <= 0f) return;
         if (cooldownTimer > 0f) cooldownTimer -= Time.deltaTime;
 
         if (dashTimer > 0f)

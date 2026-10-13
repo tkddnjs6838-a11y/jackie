@@ -33,6 +33,7 @@ public class GoalPortal : MonoBehaviour
     private Vector3 baseScale = Vector3.one;
     private float reveal;
     private bool revealed;
+    private readonly System.Collections.Generic.List<Mesh> ownedMeshes = new System.Collections.Generic.List<Mesh>();
 
     void Awake()
     {
@@ -183,6 +184,7 @@ public class GoalPortal : MonoBehaviour
         }
 
         var mesh = new Mesh();
+        ownedMeshes.Add(mesh);
         mesh.vertices = verts;
         mesh.uv = uvs;
         mesh.triangles = tris;
@@ -252,6 +254,15 @@ public class GoalPortal : MonoBehaviour
         Tint(swirlMat, coreColor, (1.8f - pulse) * 0.55f * grow);
         Tint(columnMat, ringColor * 0.35f, pulse * grow);
         Tint(padMat, ringColor * 0.7f, pulse * grow);
+    }
+
+    void OnDestroy()
+    {
+        if (ringMat != null) Destroy(ringMat);
+        if (swirlMat != null) Destroy(swirlMat);
+        if (columnMat != null) Destroy(columnMat);
+        if (padMat != null) Destroy(padMat);
+        foreach (var mesh in ownedMeshes) if (mesh != null) Destroy(mesh);
     }
 
     static void Tint(Material mat, Color baseColor, float strength)

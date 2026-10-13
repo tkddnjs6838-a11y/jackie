@@ -5,7 +5,7 @@ public class PlayerAutoAttack : MonoBehaviour
 {
     public float manualAttackRange = 3f;
     public float manualAttackCooldown = 0.5f;
-    
+
     [Header("Mouse Combo")]
     public float comboWindow = 0.8f;
     // How long a click is remembered when it lands during the cooldown. Without this the
@@ -23,7 +23,7 @@ public class PlayerAutoAttack : MonoBehaviour
     public float finisherDamageMultiplier = 2.4f;
     public float finisherRangeMultiplier = 1.3f;
     public float finisherAngle = 220f;
-public float manualAttackDamage = 30f;
+    public float manualAttackDamage = 30f;
     // hold the right button to keep swinging at the cooldown rate
     public bool holdToAttack = true;
     // health returned per connecting swing, granted by an upgrade
@@ -40,10 +40,8 @@ public float manualAttackDamage = 30f;
     public Vector3 swingEulerDelta = new Vector3(0f, 0f, -100f);
 
     [Header("Impact timing")]
-    // Measured off the live Animator (not the raw clip — humanoid retargeting shifts
-    // the timing): in the SpinningSlash state the blade descends fastest across the
-    // front at normalizedTime 0.65, and the state lasts 0.50s, so contact is 0.325s.
-    public float impactDelay = 0.325f;
+    // Contact time for the base swing; scales with its playback duration.
+    public float impactDelay = 0.21f;
 
     [Header("Hit arc")]
     // Total cone in front of the player that a swing sweeps through. Every enemy
@@ -56,50 +54,55 @@ public float manualAttackDamage = 30f;
     public float impactSourceHeight = 0.7f;
     // fraction of the range where the arc band starts — keeps it a blade crescent
     // rather than a filled pie, whatever the range is set to
-    public float sweepInnerRatio = 0.64f;
+    public float sweepInnerRatio = 0.82f;
 
     [Header("Impact feedback")]
-    public float impactShakeDuration = 0.12f;
-    public float impactShakeMagnitude = 0.09f;
+    public float impactShakeDuration = 0.07f;
+    public float impactShakeMagnitude = 0.035f;
     public float missShakeDuration = 0.05f;
-    public float missShakeMagnitude = 0.02f;
-    public float impactEffectSize = 1f;
+    public float missShakeMagnitude = 0f;
+    public float impactEffectSize = 0.8f;
 
     public bool useHitStop = true;
     public float hitStopDuration = 0.04f;
     public float hitStopScale = 0.2f;
 
     [Header("Sword grip")]
-    // The blade's offset inside the hand cannot be a single fixed value: the idle
-    // pose and the slash hold the wrist differently once the clip is retargeted, so
-    // one offset that looks right standing still points the blade backwards mid-swing.
-    // These two are blended by how much of the swing is playing.
+    // Keep the weapon rigidly attached to the hand throughout locomotion and attacks.
     public Transform swordModel;
+    public WeaponHandGrip handGrip;
     public Vector3 gripIdleEuler = new Vector3(59.03f, 7.22f, 180.80f);
-    public Vector3 gripSwingEuler = Vector3.zero;
     public float gripBlendIn = 0.06f;
     public float gripBlendOut = 0.12f;
     public float swingStateDuration = 0.5f;
 
     [Header("Attack layer")]
-    // The upper-body attack layer sits at weight 0 so walking and idling drive the
-    // whole body; it is only raised while a swing is playing.
+    // Locomotion drives the body. SwordArmPose supplies the right-arm cut in
+    // LateUpdate, so the old retargeted slash layer stays at zero weight.
     public bool driveAttackLayerWeight = true;
     public int attackLayerIndex = 1;
 
+    public bool AttackInProgress => manualCooldownTimer > 0f || swingHold > 0f;
+    PlayerWeapons weapons;
+    bool IsAxe => weapons != null && weapons.Equipped == PlayerWeapons.Kind.Axe;
     private float manualCooldownTimer;
     private Vector3 swingRestEuler;
     private Coroutine swingRoutine;
-    private float gripWeight;
     private float swingHold;
+    private float currentSwingDuration = 0.5f;
+    private readonly SwordBodyPose swordBodyPose = new SwordBodyPose();
     private float lifestealWindowStart;
-    
+
     private int comboStep;
     private float comboTimer;
     private float bufferTimer;
     private bool bufferedStrong;
-private float lifestealSpentThisSecond;void Start()
+    private float lifestealSpentThisSecond;
+
+    void Start()
     {
+        weapons = GetComponent<PlayerWeapons>();
+        if (weapons == null) weapons = gameObject.AddComponent<PlayerWeapons>();
         if (GetComponent<OffscreenEnemyIndicator>() == null)
             gameObject.AddComponent<OffscreenEnemyIndicator>();
 
@@ -113,38 +116,72 @@ private float lifestealSpentThisSecond;void Start()
         }
     }
 
-    // runs after the Animator has written the bones, so this wins over the clip
+    // Pose the arm and wrist as one chain, keeping the blade clear of the head.
     void LateUpdate()
     {
-        if (swordModel == null) return;
-
-        if (swingHold > 0f)
-        {
-            swingHold -= Time.deltaTime;
-            gripWeight = Mathf.MoveTowards(gripWeight, 1f, Time.deltaTime / Mathf.Max(0.0001f, gripBlendIn));
-        }
-        else
-        {
-            gripWeight = Mathf.MoveTowards(gripWeight, 0f, Time.deltaTime / Mathf.Max(0.0001f, gripBlendOut));
-        }
-
-        swordModel.localRotation = Quaternion.Slerp(Quaternion.Euler(gripIdleEuler),
-                                                    Quaternion.Euler(gripSwingEuler), gripWeight);
+        ApplySwordPose(1f - swingHold / Mathf.Max(0.001f, currentSwingDuration), swingHold > 0f);
     }
 
-void Update()
+    public void ApplySwordPose(float phase, bool attacking)
     {
-        if (driveAttackLayerWeight && animator != null && animator.layerCount > attackLayerIndex)
-            animator.SetLayerWeight(attackLayerIndex, gripWeight);
+        swordBodyPose.Restore();
+        if(weapons!=null && weapons.IsGun){GetComponent<PlayerGunCombat>()?.ApplyPose();return;}
+        swordBodyPose.Apply(animator, transform, phase, attacking, IsAxe);
+        SwordArmPose.Apply(animator, transform, swordModel, gripIdleEuler, phase, attacking, IsAxe);
+        if(handGrip!=null) handGrip.Apply(swordModel);
+    }
+
+    public void ResetSwordPose() => swordBodyPose.Restore();
+
+    bool ownsHitStop;
+    float hitStopPreviousScale;
+    float hitStopAppliedScale;
+
+    void OnDisable()
+    {
+        swordBodyPose.Restore();
+        RestoreHitStop();
+        StopAllCoroutines();
+    }
+
+    void RestoreHitStop()
+    {
+        if (!ownsHitStop) return;
+        // A pause/result screen owns zero time scale and must not be resumed here.
+        if (Mathf.Approximately(Time.timeScale, hitStopAppliedScale))
+            Time.timeScale = hitStopPreviousScale;
+        ownsHitStop = false;
+    }
+
+    void UpdateAttackLayer()
+    {
+        if (swingHold > 0f) swingHold = Mathf.Max(0f, swingHold - Time.deltaTime);
+        if (driveAttackLayerWeight && animator != null && attackLayerIndex >= 0 && animator.layerCount > attackLayerIndex)
+            animator.SetLayerWeight(attackLayerIndex, 0f);
+    }
+
+    void Update()
+    {
+        swordBodyPose.Restore();
+        if (Time.timeScale <= 0f)
+        {
+            bufferTimer = 0f;
+            return;
+        }
+
+        UpdateAttackLayer();
 
         manualCooldownTimer -= Time.deltaTime;
         comboTimer -= Time.deltaTime;
         if (comboTimer <= 0f) comboStep = 0;
 
+        if(weapons!=null && weapons.IsGun){bufferTimer=0;comboStep=0;return;}
         var mouse = Mouse.current;
         if (mouse == null) return;
 
-        // input is read every frame, cooldown or not, and the most recent click waits its turn
+        bufferTimer = Mathf.Max(0f, bufferTimer - Time.deltaTime);
+
+        // Read new clicks after aging the buffer so a slow frame cannot discard them.
         if (mouse.leftButton.wasPressedThisFrame)
         {
             bufferedStrong = false;
@@ -156,7 +193,12 @@ void Update()
             bufferTimer = inputBufferSeconds;
         }
 
-        if (bufferTimer > 0f) bufferTimer -= Time.deltaTime;
+        // Preserve an explicitly buffered click over a held right button.
+        if (bufferTimer <= 0f && holdToAttack && mouse.rightButton.isPressed)
+        {
+            bufferedStrong = true;
+            bufferTimer = inputBufferSeconds;
+        }
         if (manualCooldownTimer > 0f || bufferTimer <= 0f) return;
 
         bufferTimer = 0f;
@@ -195,23 +237,25 @@ void Update()
         return granted;
     }
 
-void Swing(bool strong, bool finisher)
+    void Swing(bool strong, bool finisher)
     {
-        float cooldownScale = strong ? strongCooldownMultiplier : 1f;
-        manualCooldownTimer = manualAttackCooldown * cooldownScale;
+        float cooldownScale = (strong ? strongCooldownMultiplier : 1f) * (weapons != null ? weapons.CooldownScale : 1f);
+        var effects = GetComponent<PowerUpEffects>();
+        manualCooldownTimer = manualAttackCooldown * cooldownScale * (effects != null ? effects.CooldownMultiplier : 1f) * (GetComponent<CharacterGrowth>()?.CooldownMultiplier ?? 1f);
         if (RunStats.Instance != null) RunStats.Instance.RegisterClick();
         GameAudio.Play(GameAudio.Sfx.Swing);
 
-        float damage = manualAttackDamage;
-        float range = manualAttackRange;
-        float angle = attackAngle;
+        float damage = manualAttackDamage * (GetComponent<CharacterGrowth>()?.DamageMultiplier ?? 1f) * (effects != null ? effects.DamageMultiplier : 1f);
+        damage *= weapons != null ? weapons.DamageScale : 1f;
+        float range = manualAttackRange * (weapons != null ? weapons.RangeScale : 1f);
+        float angle = Mathf.Min(300f, attackAngle + (weapons != null ? weapons.ArcBonus : 0f));
         float feedback = 1f;
 
         if (finisher)
         {
             damage *= finisherDamageMultiplier;
             range *= finisherRangeMultiplier;
-            angle = finisherAngle;
+            angle = Mathf.Min(300f, finisherAngle + (weapons != null ? weapons.ArcBonus : 0f));
             feedback = 1.75f;
         }
         else if (strong)
@@ -222,6 +266,7 @@ void Swing(bool strong, bool finisher)
             feedback = 1.3f;
         }
 
+        if (IsAxe) feedback *= 1.55f;
         float delay = PlayAttackMotion();
         StartCoroutine(StrikeAfter(delay, damage, range, angle, feedback));
     }
@@ -231,9 +276,11 @@ void Swing(bool strong, bool finisher)
     {
         if (animator != null)
         {
-            animator.SetTrigger("Attack");
-            swingHold = swingStateDuration;
-            return impactDelay;
+            float duration = Mathf.Max(0.1f, IsAxe ? Mathf.Min(.78f, manualCooldownTimer) : manualCooldownTimer);
+            animator.SetFloat("AttackSpeed", swingStateDuration / duration);
+            currentSwingDuration = duration;
+            swingHold = duration;
+            return (IsAxe ? AxeSwingMotion.ContactPhase : handGrip!=null ? SwordSwingMotion.ContactPhase : Mathf.Clamp01(impactDelay / Mathf.Max(0.01f, swingStateDuration))) * duration;
         }
 
         if (swingBone != null)
@@ -246,20 +293,21 @@ void Swing(bool strong, bool finisher)
         return 0f;
     }
 
-System.Collections.IEnumerator StrikeAfter(float delay, float damage, float range, float angle, float feedback)
+    System.Collections.IEnumerator StrikeAfter(float delay, float damage, float range, float angle, float feedback)
     {
         if (delay > 0f)
             yield return new WaitForSeconds(delay);
 
-        Color sweepColor = feedback >= 1.7f
+        Color sweepColor = IsAxe ? new Color(1f,.48f,.12f,1f) : feedback >= 1.7f
             ? new Color(0.35f, 0.9f, 1f, 1f)
             : feedback >= 1.2f
                 ? new Color(1f, 0.32f, 0.08f, 1f)
                 : new Color(1f, 0.88f, 0.45f, 1f);
-        float sweepLifetime = 0.22f * Mathf.Lerp(1f, 1.45f, (feedback - 1f) / 0.75f);
-        float sweepGrowth = Mathf.Lerp(1.12f, 1.34f, (feedback - 1f) / 0.75f);
+        float sweepLifetime = 0.12f * Mathf.Lerp(1f, 1.45f, (feedback - 1f) / 0.75f);
+        float sweepGrowth = Mathf.Lerp(1.06f, 1.18f, (feedback - 1f) / 0.75f);
 
-        SwordSweep.Spawn(transform.position + Vector3.up * sweepEffectHeight,
+        // The axe chops down; a horizontal sword crescent contradicts that motion.
+        if (!IsAxe) SwordSweep.Spawn(transform.position + Vector3.up * sweepEffectHeight,
                          transform.forward, range, angle, range * sweepInnerRatio,
                          sweepColor, sweepLifetime, sweepGrowth);
 
@@ -267,19 +315,19 @@ System.Collections.IEnumerator StrikeAfter(float delay, float damage, float rang
 
         if (targets.Count == 0)
         {
-            if (CameraShake.Instance != null)
+            if (CameraShake.Instance != null && missShakeMagnitude > 0f)
                 CameraShake.Instance.Shake(missShakeDuration, missShakeMagnitude * feedback);
             yield break;
         }
 
         if (RunStats.Instance != null) RunStats.Instance.RegisterHit();
-        GameAudio.Play(GameAudio.Sfx.Hit);
+        GameAudio.Play(IsAxe ? GameAudio.Sfx.AxeHit : GameAudio.Sfx.Hit);
 
         foreach (var target in targets)
         {
             if (target == null) continue;
             HitImpact.Spawn(ContactPoint(target), transform.forward, impactEffectSize * feedback);
-            target.TakeDamage(damage);
+            target.TakeDamage(damage, ContactPoint(target));
         }
 
         if (lifestealPerHit > 0f)
@@ -296,16 +344,21 @@ System.Collections.IEnumerator StrikeAfter(float delay, float damage, float rang
             yield return HitStop(feedback);
     }
 
-System.Collections.IEnumerator HitStop(float strength)
+    System.Collections.IEnumerator HitStop(float strength)
     {
         if (Time.timeScale <= 0f) yield break;
 
-        float scale = strength >= 1.7f ? 0.08f : hitStopScale;
-        Time.timeScale = scale;
-        yield return new WaitForSecondsRealtime(hitStopDuration * strength);
-
-        if (Mathf.Approximately(Time.timeScale, scale))
-            Time.timeScale = 1f;
+        // Never extend or stack a stop when several enemies are hit together.
+        if (ownsHitStop) yield break;
+        hitStopPreviousScale = Time.timeScale;
+        hitStopAppliedScale = Mathf.Min(hitStopPreviousScale, strength >= 1.7f ? 0.08f : hitStopScale);
+        ownsHitStop = true;
+        Time.timeScale = hitStopAppliedScale;
+        try
+        {
+            yield return new WaitForSecondsRealtime(hitStopDuration * strength);
+        }
+        finally { RestoreHitStop(); }
     }
 
     Vector3 ContactPoint(Enemy target)
@@ -358,8 +411,8 @@ System.Collections.IEnumerator HitStop(float strength)
 
         foreach (var hit in hits)
         {
-            Enemy enemy = hit.GetComponent<Enemy>();
-            if (enemy == null) continue;
+            Enemy enemy = hit.GetComponentInParent<Enemy>();
+            if (enemy == null || enemy.IsDying) continue;
 
             Vector3 toEnemy = enemy.transform.position - transform.position;
             toEnemy.y = 0f;

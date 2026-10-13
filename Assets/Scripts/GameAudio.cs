@@ -24,7 +24,8 @@ public class GameAudio : MonoBehaviour
         UpgradePick,
         BossSpawn,
         BossDie,
-        Victory
+        Victory,
+        AxeHit, PistolShot, MachineShot, LaserCharge, LaserShot, PistolImpact, MachineImpact, LaserImpact, GunReload
     }
 
     [System.Serializable]

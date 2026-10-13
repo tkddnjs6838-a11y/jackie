@@ -16,6 +16,9 @@ public class GameFlowManager : MonoBehaviour
     public Text gameOverStatsText;
     public Text victoryStatsText;
 
+    private bool started;
+    private bool finished;
+
     void Awake()
     {
         // Statics survive SceneManager.LoadScene, so clear the boss flag on every (re)start.
@@ -30,14 +33,14 @@ public class GameFlowManager : MonoBehaviour
         
 
         EnsureControlGuide();
-if (victoryPanel != null) victoryPanel.SetActive(false);
+        if (victoryPanel != null) victoryPanel.SetActive(false);
 
         if (startButton != null) startButton.onClick.AddListener(OnStartClicked);
         if (retryButton != null) retryButton.onClick.AddListener(OnRetryClicked);
         if (victoryRetryButton != null) victoryRetryButton.onClick.AddListener(OnRetryClicked);
     }
 
-void EnsureControlGuide()
+    void EnsureControlGuide()
     {
         if (startPanel == null || startPanel.transform.Find("ControlGuide") != null) return;
 
@@ -63,7 +66,10 @@ void EnsureControlGuide()
         var label = textObject.GetComponent<Text>();
         var sample = startPanel.GetComponentInChildren<Text>(true);
         label.font = sample != null ? sample.font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        label.text = "이동  WASD    |    기본 공격  좌클릭\n강공격  우클릭    |    마무리 콤보  좌 → 좌 → 우";
+        label.text = "이동  WASD    |    기본 공격  좌클릭    |    회피  Space\n강공격  우클릭    |    마무리 콤보  좌 → 좌 → 우";
+        if(WeaponTestSettings.AllGunsAtStart)
+            label.text += "\n총 테스트  3 샷건 · 4 기관총 · 5 레이저  |  발사 좌클릭 · 재장전 R";
+        label.text += "\n보유 증강 확인  Tab";
         label.fontSize = 22;
         label.fontStyle = FontStyle.Bold;
         label.alignment = TextAnchor.MiddleCenter;
@@ -86,6 +92,8 @@ void EnsureControlGuide()
 
     void OnStartClicked()
     {
+        if (started || finished) return;
+        started = true;
         if (startPanel != null) startPanel.SetActive(false);
         Time.timeScale = 1f;
         Cursor.lockState = CursorLockMode.Locked;
@@ -99,6 +107,9 @@ void EnsureControlGuide()
 
     void HandlePlayerDied()
     {
+        if (!started || finished) return;
+        finished = true;
+        CloseGameplayPanels();
         FinishRun(gameOverStatsText);
         if (gameOverPanel != null) gameOverPanel.SetActive(true);
         ReleaseCursor();
@@ -134,13 +145,24 @@ void EnsureControlGuide()
 
     void HandlePlayerWon()
     {
+        if (!started || finished) return;
+        finished = true;
+        CloseGameplayPanels();
         if (victoryTimeText != null)
-            victoryTimeText.text = "Clear Time  " + Time.timeSinceLevelLoad.ToString("F1") + "s";
+            victoryTimeText.text = "Clear Time  " + (RunStats.Instance != null ? RunStats.Instance.SurvivalTime : Time.timeSinceLevelLoad).ToString("F1") + "s";
 
         FinishRun(victoryStatsText);
         GameAudio.Play(GameAudio.Sfx.Victory);
         if (victoryPanel != null) victoryPanel.SetActive(true);
         ReleaseCursor();
+    }
+
+    void CloseGameplayPanels()
+    {
+        Time.timeScale = 0f;
+        if (startPanel != null) startPanel.SetActive(false);
+        var upgrades = FindFirstObjectByType<UpgradeSystem>();
+        if (upgrades != null) upgrades.CancelChoices();
     }
 
     void ReleaseCursor()
