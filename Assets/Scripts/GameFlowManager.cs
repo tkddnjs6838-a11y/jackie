@@ -32,7 +32,12 @@ public class GameFlowManager : MonoBehaviour
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
         
 
-        EnsureControlGuide();
+        var startView = startPanel != null ? startPanel.GetComponent<StartScreenView>() : null;
+        if (startView != null)
+        {
+            startButton = startView.startButton;
+            startView.ShowTestMode(WeaponTestSettings.AllGunsAtStart);
+        }
         if (victoryPanel != null) victoryPanel.SetActive(false);
 
         if (startButton != null) startButton.onClick.AddListener(OnStartClicked);
@@ -40,43 +45,12 @@ public class GameFlowManager : MonoBehaviour
         if (victoryRetryButton != null) victoryRetryButton.onClick.AddListener(OnRetryClicked);
     }
 
-    void EnsureControlGuide()
+    void OnDestroy()
     {
-        if (startPanel == null || startPanel.transform.Find("ControlGuide") != null) return;
-
-        var guide = new GameObject("ControlGuide", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        guide.transform.SetParent(startPanel.transform, false);
-        var rect = guide.GetComponent<RectTransform>();
-        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = new Vector2(0f, -205f);
-        rect.sizeDelta = new Vector2(610f, 126f);
-
-        var background = guide.GetComponent<Image>();
-        background.color = new Color(0.025f, 0.035f, 0.055f, 0.86f);
-        background.raycastTarget = false;
-
-        var textObject = new GameObject("GuideText", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-        textObject.transform.SetParent(guide.transform, false);
-        var textRect = textObject.GetComponent<RectTransform>();
-        textRect.anchorMin = Vector2.zero;
-        textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = new Vector2(20f, 10f);
-        textRect.offsetMax = new Vector2(-20f, -10f);
-
-        var label = textObject.GetComponent<Text>();
-        var sample = startPanel.GetComponentInChildren<Text>(true);
-        label.font = sample != null ? sample.font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        label.text = "이동  WASD    |    기본 공격  좌클릭    |    회피  Space\n강공격  우클릭    |    마무리 콤보  좌 → 좌 → 우";
-        if(WeaponTestSettings.AllGunsAtStart)
-            label.text += "\n총 테스트  3 샷건 · 4 기관총 · 5 레이저  |  발사 좌클릭 · 재장전 R";
-        label.text += "\n보유 증강 확인  Tab";
-        label.fontSize = 22;
-        label.fontStyle = FontStyle.Bold;
-        label.alignment = TextAnchor.MiddleCenter;
-        label.color = Color.white;
-        label.raycastTarget = false;
+        if (startButton != null) startButton.onClick.RemoveListener(OnStartClicked);
+        if (retryButton != null) retryButton.onClick.RemoveListener(OnRetryClicked);
+        if (victoryRetryButton != null) victoryRetryButton.onClick.RemoveListener(OnRetryClicked);
     }
-
 
     void OnEnable()
     {

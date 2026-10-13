@@ -1,0 +1,44 @@
+시작 화면 디자인 작업 안내 (Claude)
+
+Unity 버전: 6000.3.19f1
+
+편집할 원본
+- Assets/Design/UI/StartScreen.prefab
+- Assets/Design/Scenes/StartScreenPreview.unity (디자인 미리보기 전용)
+- 추가 이미지/아이콘/재질은 Assets/Design/ 아래에 저장하고 .meta도 함께 커밋.
+
+작업 방법
+1. 최신 통합 커밋을 받은 뒤 design/start-screen 브랜치에서 작업.
+2. StartScreenPreview 씬을 열어 전체 화면을 확인.
+3. StartScreen 프리팹을 Prefab Mode에서 열고 배치, 폰트, 색상, 배경을 수정.
+4. 미리보기 씬의 인스턴스에만 변경하지 말고 프리팹 원본에 반영.
+5. 프리팹 루트는 화면 전체를 채우는 RectTransform 구조를 유지.
+6. 루트 StartScreenView 컴포넌트와 Start Button 참조를 유지.
+   버튼을 교체한다면 StartScreenView.startButton에 새 Button을 연결.
+7. Test Mode Notice 참조는 테스트 전용 안내 오브젝트에 연결하고 기본 비활성 유지.
+8. START 버튼의 On Click에 게임 시작, 시간 정지, 씬 전환 코드를 직접 추가하지 말 것.
+9. 1280x720과 1920x1080에서 글자, 버튼, 조작 안내가 잘리지 않는지 확인.
+
+연결 구조
+- SampleScene의 StartPanel은 StartScreen.prefab의 연결된 인스턴스.
+- GameFlowManager가 시작 시 StartScreenView.startButton을 읽어 클릭 동작을 연결함.
+- 프리팹 원본 디자인 변경은 플레이 씬에도 반영됨.
+- GameFlowManager가 시간, 커서, RunStats, 음악, 게임오버, 재시작을 관리함.
+- 미리보기 씬에는 GameFlowManager나 게임 로직이 없음.
+  미리보기에서 START를 눌러도 게임이 시작되지 않는 것이 정상.
+- 미리보기 씬은 빌드 시작 씬으로 등록하지 말 것.
+
+Codex 담당 — 직접 수정하지 않을 파일
+- Assets/Scenes/SampleScene.unity
+- Assets/Scripts/GameFlowManager.cs
+- Assets/Scripts/UI/StartScreenView.cs
+- Assets/Editor/StartScreenWorkshop.cs
+- 기존 게임 시스템 스크립트, ProjectSettings, Packages
+- Assets/Fonts와 Assets/Resources의 공용 에셋 (필요하면 Design 아래 복사본 사용)
+
+전달할 내용
+- 브랜치와 커밋 번호
+- 변경한 파일 목록 및 실제 Unity 미리보기 이미지
+- 버튼/참조 변경 여부와 통합 시 필요한 사항
+
+현재 작업은 기존 시작 화면을 분리한 것으로, 새로운 디자인을 완성한 상태는 아님.

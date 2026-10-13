@@ -146,6 +146,12 @@ public static class SceneFlowChecks
                     Assert(missing == 0, "scene has no missing scripts");
                     Assert(flow.startPanel.activeSelf && !flow.gameOverPanel.activeSelf && !flow.victoryPanel.activeSelf,
                            "title screen hides both result panels");
+                    var startView=flow.startPanel.GetComponent<StartScreenView>();
+                    Assert(startView!=null && startView.startButton==flow.startButton,"prefab view supplies the gameplay start button");
+                    Assert(Array.IndexOf(AssetDatabase.GetDependencies(flow.gameObject.scene.path),StartScreenWorkshop.PrefabPath)>=0,"start screen remains linked to design prefab");
+                    Assert(flow.startPanel.transform.Find("ControlGuide")!=null,"control guide is serialized in the prefab");
+                    Assert(startView.testModeNotice.activeSelf==WeaponTestSettings.AllGunsAtStart,"test-only instructions follow active preset");
+                    CaptureStartScreen(flow);
                     flow.startButton.onClick.Invoke();
                     health.GrantInvincibility(1000f);
                     Assert(RunStats.Instance.Running && Time.timeScale == 1f && !flow.startPanel.activeSelf,
@@ -226,6 +232,16 @@ public static class SceneFlowChecks
             phase++;
         }
         catch (Exception ex) { Finish(false, "phase " + phase + ": " + ex); }
+    }
+
+    static void CaptureStartScreen(GameFlowManager manager)
+    {
+        var canvas=manager.startPanel.GetComponentInParent<Canvas>();var mode=canvas.renderMode;var previousCamera=canvas.worldCamera;float distance=canvas.planeDistance;
+        var obj=new GameObject("StartScreenCapture",typeof(Camera));var camera=obj.GetComponent<Camera>();camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.07f,.09f,.12f);camera.cullingMask=~0;
+        canvas.renderMode=RenderMode.ScreenSpaceCamera;canvas.worldCamera=camera;canvas.planeDistance=1;
+        var rt=new RenderTexture(1280,720,24);var old=RenderTexture.active;var texture=new Texture2D(1280,720,TextureFormat.RGB24,false);
+        try{camera.targetTexture=rt;Canvas.ForceUpdateCanvases();camera.Render();RenderTexture.active=rt;texture.ReadPixels(new Rect(0,0,1280,720),0,0);texture.Apply();System.IO.File.WriteAllBytes("output/gun-effects/start-screen.png",texture.EncodeToPNG());}
+        finally{canvas.renderMode=mode;canvas.worldCamera=previousCamera;canvas.planeDistance=distance;RenderTexture.active=old;UnityEngine.Object.Destroy(rt);UnityEngine.Object.Destroy(texture);UnityEngine.Object.Destroy(obj);}
     }
 
     static void Finish(bool success, string message)
