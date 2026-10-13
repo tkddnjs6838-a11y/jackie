@@ -31,6 +31,8 @@ public static class SceneFlowChecks
         Run();
     }
     static double next;
+    static float runStartedAt;
+    static double spawnCheckDeadline;
     static Enemy target;
     static float beforeHealth;
     static GameFlowManager flow;
@@ -131,6 +133,9 @@ public static class SceneFlowChecks
             }
             return;
         }
+        // Editor updates continue during slow/background player frames; give the game
+        // five scaled seconds, with a wall-clock watchdog for a genuinely stalled run.
+        if(phase==1 && !longRun && Time.time-runStartedAt<5f && EditorApplication.timeSinceStartup<spawnCheckDeadline)return;
         try
         {
             flow = UnityEngine.Object.FindFirstObjectByType<GameFlowManager>();
@@ -151,11 +156,30 @@ public static class SceneFlowChecks
                     Assert(Array.IndexOf(AssetDatabase.GetDependencies(flow.gameObject.scene.path),StartScreenWorkshop.PrefabPath)>=0,"start screen remains linked to design prefab");
                     Assert(flow.startPanel.transform.Find("ControlGuide")!=null,"control guide is serialized in the prefab");
                     Assert(startView.testModeNotice.activeSelf==WeaponTestSettings.AllGunsAtStart,"test-only instructions follow active preset");
+                    bool hadVolume=PlayerPrefs.HasKey("audio.masterVolume");
+                    float savedVolume=PlayerPrefs.GetFloat("audio.masterVolume",1f), liveVolume=AudioListener.volume;
+                    try
+                    {
+                        startView.settingsButton.onClick.Invoke();
+                        Assert(startView.settingsPanel.activeSelf && !flow.startButton.interactable && Time.timeScale==0,"settings opens and blocks starting behind the modal");
+                        startView.volumeSlider.value=.37f;
+                        Assert(Mathf.Abs(AudioListener.volume-.37f)<.001f && startView.volumeLabel.text=="37%","volume slider controls audio and percentage");
+                        startView.volumeSlider.value=liveVolume;
+                        startView.closeSettingsButton.onClick.Invoke();
+                        Assert(!startView.settingsPanel.activeSelf && flow.startButton.interactable && Time.timeScale==0,"closing settings restores menu without starting combat");
+                    }
+                    finally
+                    {
+                        AudioListener.volume=liveVolume;
+                        if(hadVolume)PlayerPrefs.SetFloat("audio.masterVolume",savedVolume);else PlayerPrefs.DeleteKey("audio.masterVolume");
+                        PlayerPrefs.Save();
+                    }
                     CaptureStartScreen(flow);
                     flow.startButton.onClick.Invoke();
                     health.GrantInvincibility(1000f);
                     Assert(RunStats.Instance.Running && Time.timeScale == 1f && !flow.startPanel.activeSelf,
                            "start button begins the run");
+                    runStartedAt=Time.time;spawnCheckDeadline=EditorApplication.timeSinceStartup+45;
                     next = EditorApplication.timeSinceStartup + (longRun ? 45 : 5);
                     nextSwing = EditorApplication.timeSinceStartup + .5;
                     nextSplitWave = EditorApplication.timeSinceStartup + 5;
@@ -177,6 +201,7 @@ public static class SceneFlowChecks
                     Assert(target == null || target.IsDying || target.CurrentHealth < beforeHealth,
                            "animated sword strike applies delayed damage in the scene");
                     // Controlled kills test the actual death events, progression and serialized UI bindings.
+                    spawner.bossWarningSeconds=0;
                     typeof(EnemySpawner).GetField("elapsed", Private).SetValue(spawner,spawner.bossEarliestSeconds);
                     for (int i = 0; i < spawner.killsToSpawnBoss && spawner.KillCount < spawner.killsToSpawnBoss; i++)
                     {
@@ -236,8 +261,9 @@ public static class SceneFlowChecks
 
     static void CaptureStartScreen(GameFlowManager manager)
     {
-        var canvas=manager.startPanel.GetComponentInParent<Canvas>();var mode=canvas.renderMode;var previousCamera=canvas.worldCamera;float distance=canvas.planeDistance;
-        var obj=new GameObject("StartScreenCapture",typeof(Camera));var camera=obj.GetComponent<Camera>();camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.07f,.09f,.12f);camera.cullingMask=~0;
+        var canvas=manager.startPanel.GetComponentInParent<Canvas>().rootCanvas;var mode=canvas.renderMode;var previousCamera=canvas.worldCamera;float distance=canvas.planeDistance;
+        var obj=new GameObject("StartScreenCapture",typeof(Camera));var camera=obj.GetComponent<Camera>();camera.clearFlags=CameraClearFlags.SolidColor;camera.backgroundColor=new Color(.07f,.09f,.12f);camera.cullingMask=1<<5;
+        foreach(var child in canvas.GetComponentsInChildren<Transform>(true))child.gameObject.layer=5;
         canvas.renderMode=RenderMode.ScreenSpaceCamera;canvas.worldCamera=camera;canvas.planeDistance=1;
         var rt=new RenderTexture(1280,720,24);var old=RenderTexture.active;var texture=new Texture2D(1280,720,TextureFormat.RGB24,false);
         try{camera.targetTexture=rt;Canvas.ForceUpdateCanvases();camera.Render();RenderTexture.active=rt;texture.ReadPixels(new Rect(0,0,1280,720),0,0);texture.Apply();System.IO.File.WriteAllBytes("output/gun-effects/start-screen.png",texture.EncodeToPNG());}

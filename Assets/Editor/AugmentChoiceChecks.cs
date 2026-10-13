@@ -24,12 +24,16 @@ public static class AugmentChoiceChecks
         var move=growth.GetComponent<PlayerController>();move.enabled=false;
         growth.GetComponent<PlayerHealth>().GrantInvincibility(1000);
         var pickups=new List<GameObject>();
+        var originalPosition=growth.transform.position;
         try
         {
             var box=CharacterUpgradePickup.Spawn(growth.transform.position,CharacterGrowth.Kind.Power);pickups.Add(box.gameObject);
             Time.timeScale=0;yield return null;yield return null;
             Check(box!=null && !choices.Choosing,"ordinary pause blocks crate collection");Time.timeScale=1;
-            yield return null;yield return null;
+            yield return new WaitForSeconds(.85f);
+            Check(box!=null && !choices.Choosing,"crate spawned under player never auto-opens while standing still");
+            growth.transform.position=originalPosition+Vector3.right*2;yield return null;yield return null;
+            growth.transform.position=originalPosition;yield return null;yield return null;
             Check(box==null && choices.Choosing && Time.timeScale==0,"crate consumed and selection pauses combat");
             Check(choices.Offered.Count==3 && new HashSet<CharacterGrowth.Kind>(choices.Offered).Count==3,"three distinct available choices");
             int total=0;foreach(CharacterGrowth.Kind kind in Enum.GetValues(typeof(CharacterGrowth.Kind)))total+=growth.Level(kind);
@@ -53,13 +57,26 @@ public static class AugmentChoiceChecks
             choices.ChoicePanel.GetComponentsInChildren<Button>()[0].onClick.Invoke();
             Check(growth.Level(selected)==before+1 && !choices.Choosing && Time.timeScale==1,"button grants selected augment once and resumes");
             Check(!choices.Choose(0) && growth.Level(selected)==before+1,"repeated click grants nothing");
-            yield return null;yield return null;Check(second==null && choices.Choosing,"second crate opens its own selection after resume");choices.Choose(0);
+            yield return new WaitForSeconds(.85f);
+            Check(second!=null && !choices.Choosing && Time.timeScale==1,"second nearby crate cannot reopen choices after resume");
+            growth.transform.position=originalPosition+Vector3.right*2;yield return null;yield return null;
+            growth.transform.position=originalPosition;yield return null;yield return null;
+            Check(second==null && choices.Choosing,"second crate requires a new approach");choices.Choose(0);
+            box=CharacterUpgradePickup.Spawn(originalPosition+Vector3.right*3,CharacterGrowth.Kind.Power);pickups.Add(box.gameObject);
+            yield return null;
+            growth.transform.position=originalPosition+Vector3.right*3;yield return null;yield return null;
+            Check(box!=null && !choices.Choosing,"newly spawned crate has a collection delay");
+            yield return new WaitForSecondsRealtime(.9f);yield return null;
+            Check(box==null && choices.Choosing,"approached crate can be collected after delay");choices.Choose(0);
+            growth.transform.position=originalPosition;
             foreach(CharacterGrowth.Kind kind in Enum.GetValues(typeof(CharacterGrowth.Kind)))
                 if(kind!=CharacterGrowth.Kind.BloodEdge)while(growth.CanCollect(kind))growth.TryCollect(kind);
             Check(choices.TryOffer(growth) && choices.Offered.Count==1 && choices.Offered[0]==CharacterGrowth.Kind.BloodEdge,"capped augments excluded; one remaining choice works");choices.Choose(0);
             while(growth.CanCollect(CharacterGrowth.Kind.BloodEdge))growth.TryCollect(CharacterGrowth.Kind.BloodEdge);
             Check(!choices.TryOffer(growth) && Time.timeScale==1,"all capped does not pause");
-            box=CharacterUpgradePickup.Spawn(growth.transform.position,CharacterGrowth.Kind.Power);pickups.Add(box.gameObject);yield return null;yield return null;
+            box=CharacterUpgradePickup.Spawn(growth.transform.position,CharacterGrowth.Kind.Power);pickups.Add(box.gameObject);
+            growth.transform.position=originalPosition+Vector3.right*2;yield return new WaitForSeconds(.85f);
+            growth.transform.position=originalPosition;yield return null;yield return null;
             Check(box!=null && !choices.Choosing,"all capped leaves crate unconsumed");Object.Destroy(box.gameObject);
             // A separate run-local inventory checks game-end cancellation without clearing actual levels.
             var fixture=new GameObject("ChoiceEndFixture");pickups.Add(fixture);fixture.AddComponent<PlayerHealth>();var fresh=fixture.AddComponent<CharacterGrowth>();
@@ -69,6 +86,6 @@ public static class AugmentChoiceChecks
             Check(!choices.Choose(0) && !choices.TryOffer(fresh),"game over rejects stale click and new offer");
             Debug.Log("AUGMENT CHOICE CHECKS COMPLETE\n"+report);
         }
-        finally{choices.CancelChoices();foreach(var obj in pickups)if(obj!=null)Object.Destroy(obj);spawner.enabled=true;move.enabled=true;}
+        finally{growth.transform.position=originalPosition;choices.CancelChoices();foreach(var obj in pickups)if(obj!=null)Object.Destroy(obj);spawner.enabled=true;move.enabled=true;}
     }
 }

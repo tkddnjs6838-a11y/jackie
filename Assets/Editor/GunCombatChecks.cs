@@ -13,7 +13,7 @@ public static class GunCombatChecks
     {
         const string path="output/gun-effects/request.txt";
         if(EditorApplication.isCompiling || !EditorApplication.isPlaying || !File.Exists(path))return;
-        var action=File.ReadAllText(path).Trim();File.Delete(path);if(action=="flow")SceneFlowChecks.Run();else if(action=="pacing")EnemyPacingChecks.Run();else if(action=="progression")ProgressionChecks.Run();else if(action=="inventory")AugmentInventoryChecks.Run();else if(action=="choices")AugmentChoiceChecks.Run();else if(action=="loadout")CheckTestLoadout();else if(action=="drops")PickupDropChecks.Run();else if(action=="timed")TimedItemChecks.Run();else if(action=="growth")CharacterGrowthChecks.Run();else if(action=="regression")CombatRegressionChecks.Run();else Run();
+        var action=File.ReadAllText(path).Trim();File.Delete(path);if(action=="hud")CombatHudChecks.Run();else if(action=="bosscombat")BossCombatChecks.Run();else if(action=="arrival")BossArrivalChecks.Run();else if(action=="flow")SceneFlowChecks.Run();else if(action=="pacing")EnemyPacingChecks.Run();else if(action=="progression")ProgressionChecks.Run();else if(action=="inventory")AugmentInventoryChecks.Run();else if(action=="choices")AugmentChoiceChecks.Run();else if(action=="loadout")CheckTestLoadout();else if(action=="drops")PickupDropChecks.Run();else if(action=="timed")TimedItemChecks.Run();else if(action=="growth")CharacterGrowthChecks.Run();else if(action=="regression")CombatRegressionChecks.Run();else Run();
     }
     static void CheckTestLoadout()
     {

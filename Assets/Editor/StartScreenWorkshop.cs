@@ -20,6 +20,7 @@ public static class StartScreenWorkshop
         if(EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling || !File.Exists(request))return;
         string action=File.ReadAllText(request).Trim();File.Delete(request);
         if(action=="preview"){ValidatePreview();return;}
+        if(action=="style"){try{StartScreenStyling.Apply();ValidatePreview();Debug.Log("START SCREEN STYLE COMPLETE");}catch(Exception ex){Debug.LogException(ex);}return;}
         try{Extract();File.WriteAllText("output/gun-effects/start-screen-setup-result.txt","PASS: StartScreen prefab, preview scene and gameplay references saved.");}
         catch(Exception ex){Debug.LogException(ex);File.WriteAllText("output/gun-effects/start-screen-setup-result.txt","FAIL: "+ex);}
     }

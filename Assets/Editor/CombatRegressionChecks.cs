@@ -119,6 +119,7 @@ public static class CombatRegressionChecks
             var spawner = New("Spawner").AddComponent<EnemySpawner>();
             spawner.player = New("SpawnOrigin").transform;
             spawner.spawnRadius = 1f;
+            spawner.bossWarningSeconds = 0;
             spawner.bossPrefab = New("BossPrefab");
             spawner.bossPrefab.AddComponent<Enemy>().isBoss = true;
             Set(spawner, "killCount", spawner.killsToSpawnBoss);

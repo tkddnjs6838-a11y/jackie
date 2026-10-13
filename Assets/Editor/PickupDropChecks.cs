@@ -72,6 +72,7 @@ public static class PickupDropChecks
             finally{RenderTexture.active=old;camera.targetTexture=null;Object.Destroy(rt);Object.Destroy(texture);Object.Destroy(camera.gameObject);}
             var gun=weapons.GetComponent<PlayerGunCombat>();
             var reserves=(int[])typeof(PlayerGunCombat).GetField("reserve",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(gun);reserves[0]=0;
+            yield return new WaitForSeconds(.8f);
             weapons.transform.position=at;yield return null;yield return null;
             Check(GunPickup.ActiveCount==0 && reserves[0]==8,"weapon crate replenishes ammo and disappears");
             var growth=weapons.GetComponent<CharacterGrowth>();int level=growth.Level(CharacterGrowth.Kind.Vitality);

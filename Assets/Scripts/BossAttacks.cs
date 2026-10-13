@@ -77,6 +77,7 @@ public class BossAttacks : MonoBehaviour
 
     bool Ready()
     {
+        if (RunStats.Instance == null || !RunStats.Instance.Running) return false;
         if (enemy == null || enemy.IsDying) return false;
         if (player == null)
         {
@@ -112,11 +113,16 @@ public class BossAttacks : MonoBehaviour
         float t = 0f;
         while (t < slamWindUp)
         {
+            if (!Ready()) { enemy.externalMovement = false; yield break; }
             SwordSweep.Spawn(GroundPoint(), transform.forward, slamRadius, 360f, slamRadius * 0.88f,
                              windUpColor, 0.2f, 1f);
             t += 0.18f;
             yield return new WaitForSeconds(0.18f);
         }
+
+        if (!Ready()) { enemy.externalMovement = false; yield break; }
+        while (Time.timeScale <= 0f) yield return null;
+        if (!Ready()) { enemy.externalMovement = false; yield break; }
 
         // impact: one bright ring that reads as the shockwave, and one damage check
         SwordSweep.Spawn(GroundPoint(), transform.forward, slamRadius, 360f, slamRadius * 0.35f,
@@ -148,6 +154,7 @@ public class BossAttacks : MonoBehaviour
         float t = 0f;
         while (t < chargeWindUp)
         {
+            if (!Ready()) { enemy.externalMovement = false; yield break; }
             // a narrow lane drawn down the path it is about to take
             SwordSweep.Spawn(GroundPoint(), dir, chargeDistance, 22f, 1.5f, windUpColor, 0.2f, 1f);
             t += 0.18f;
@@ -158,6 +165,9 @@ public class BossAttacks : MonoBehaviour
         bool connected = false;
         while (travelled < chargeDistance)
         {
+            if (!Ready()) { enemy.externalMovement = false; yield break; }
+            // Coroutines yielding null still run while the choice/inventory screen pauses time.
+            if (Time.timeScale <= 0f) { yield return null; continue; }
             float step = Mathf.Min(chargeSpeed * PowerUpEffects.EnemySpeedScale * Time.deltaTime,
                                    chargeDistance - travelled);
             enemy.MoveAvoidingObstacles(dir * step);

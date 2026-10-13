@@ -12,6 +12,8 @@ public class EnemySpawner : MonoBehaviour
     public float intervalDecayPerMinute = 0.2f;
     public int killsToSpawnBoss = 40;
     public float bossEarliestSeconds = 60f;
+    public float bossWarningSeconds = 3f;
+    public float bossClearRadius = 2.5f;
     public Text killCountText;
 
     [System.Serializable]
@@ -58,6 +60,12 @@ public class EnemySpawner : MonoBehaviour
 
     private bool firstChargerSpawned;
     private bool bossSpawned;
+    private BossArrivalWarning bossWarning;
+    private Vector3 bossArrivalPosition;
+    private float bossWarningRemaining;
+    public bool BossWarningActive => bossWarning != null;
+    public float BossWarningRemaining => bossWarningRemaining;
+    public Vector3 BossArrivalPosition => bossArrivalPosition;
     private float nextEliteAt = -1f;
 
     void Start()
@@ -74,6 +82,7 @@ public class EnemySpawner : MonoBehaviour
     void OnDisable()
     {
         Enemy.OnEnemyDied -= HandleEnemyDied;
+        CancelBossWarning();
     }
 
     void HandleEnemyDied(Enemy enemy)
@@ -88,9 +97,33 @@ public class EnemySpawner : MonoBehaviour
 
     void TrySpawnBoss()
     {
-        if (RunStats.Instance != null && RunStats.Instance.Running && Time.timeScale > 0f
-            && !bossSpawned && elapsed >= bossEarliestSeconds && killCount >= killsToSpawnBoss)
-            bossSpawned = SpawnEnemy(bossPrefab);
+        if(RunStats.Instance==null || !RunStats.Instance.Running || Time.timeScale<=0 || bossSpawned || BossWarningActive
+            || elapsed<bossEarliestSeconds || killCount<killsToSpawnBoss || bossPrefab==null)return;
+        if(!TryFindSpawnPoint(out bossArrivalPosition,bossClearRadius))return;
+        if(bossWarningSeconds<=0){Instantiate(bossPrefab,bossArrivalPosition,Quaternion.identity);bossSpawned=true;return;}
+        bossWarningRemaining=bossWarningSeconds;
+        bossWarning=BossArrivalWarning.Create(bossArrivalPosition,bossClearRadius);
+        bossWarning.SetRemaining(bossWarningRemaining);
+    }
+    void TickBossWarning(float delta)
+    {
+        if(!BossWarningActive)return;
+        if(RunStats.Instance==null || !RunStats.Instance.Running){CancelBossWarning();return;}
+        if(Time.timeScale<=0)return;
+        bossWarningRemaining=Mathf.Max(0,bossWarningRemaining-delta);
+        bossWarning.SetRemaining(bossWarningRemaining);
+        if(bossWarningRemaining>0)return;
+        var offset=player!=null?player.position-bossArrivalPosition:Vector3.zero;offset.y=0;
+        // If the player or a prop occupies the marked spot, start a fresh warning elsewhere.
+        bool clear=player!=null && offset.sqrMagnitude>(bossClearRadius+1f)*(bossClearRadius+1f)
+            && !IsSpawnBlocked(bossArrivalPosition,bossClearRadius);
+        if(clear && bossPrefab!=null){Instantiate(bossPrefab,bossArrivalPosition,Quaternion.identity);bossSpawned=true;}
+        CancelBossWarning();
+    }
+    void CancelBossWarning()
+    {
+        if(bossWarning!=null)bossWarning.Dismiss();
+        bossWarning=null;bossWarningRemaining=0;
     }
 
     void UpdateKillCountText()
@@ -101,6 +134,7 @@ public class EnemySpawner : MonoBehaviour
 
     void Update()
     {
+        TickBossWarning(Time.deltaTime);
         if (Time.timeScale <= 0f || RunStats.Instance == null || !RunStats.Instance.Running) return;
         elapsed += Time.deltaTime;
         timer += Time.deltaTime;
@@ -217,29 +251,7 @@ public class EnemySpawner : MonoBehaviour
     {
         if (prefab == null || player == null) return false;
 
-        Vector3 spawnPosition = player.position;
-        bool foundClearPoint = false;
-
-        for (int attempt = 0; attempt < 16; attempt++)
-        {
-            Vector2 circle = Random.insideUnitCircle.normalized * spawnRadius;
-            float x = player.position.x + circle.x;
-            float z = player.position.z + circle.y;
-            float y = 0f;
-
-            var terrain = Terrain.activeTerrain;
-            if (terrain != null)
-                y = terrain.SampleHeight(new Vector3(x, 0f, z)) + terrain.transform.position.y;
-
-            spawnPosition = new Vector3(x, y, z);
-            if (!IsSpawnBlocked(spawnPosition))
-            {
-                foundClearPoint = true;
-                break;
-            }
-        }
-
-        if (!foundClearPoint) return false;
+        if(!TryFindSpawnPoint(out var spawnPosition,.62f))return false;
 
         var spawned = (GameObject)Instantiate(prefab, spawnPosition, Quaternion.identity);
         var enemy = spawned.GetComponent<Enemy>();
@@ -251,9 +263,23 @@ public class EnemySpawner : MonoBehaviour
     }
 
 
-    bool IsSpawnBlocked(Vector3 position)
+    bool TryFindSpawnPoint(out Vector3 position,float radius)
     {
-        Collider[] overlaps = Physics.OverlapSphere(position + Vector3.up * 0.65f, 0.62f,
+        position=Vector3.zero;if(player==null)return false;
+        for(int attempt=0;attempt<16;attempt++)
+        {
+            Vector2 circle=Random.insideUnitCircle.normalized*spawnRadius;
+            position=player.position+new Vector3(circle.x,0,circle.y);position.y=0;
+            var terrain=Terrain.activeTerrain;
+            if(terrain!=null)position.y=terrain.SampleHeight(position)+terrain.transform.position.y;
+            if(!IsSpawnBlocked(position,radius))return true;
+        }
+        return false;
+    }
+
+    bool IsSpawnBlocked(Vector3 position,float radius=.62f)
+    {
+        Collider[] overlaps = Physics.OverlapSphere(position + Vector3.up * 0.65f, radius,
                                                      ~0, QueryTriggerInteraction.Ignore);
         foreach (var col in overlaps)
         {

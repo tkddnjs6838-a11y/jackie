@@ -39,7 +39,7 @@ public static class EnemyPacingChecks
             Set(s,"elapsed",59f);Set(s,"killCount",100);Call(s,"TrySpawnBoss");Check(!BossSpawned(s),"high kill count cannot summon boss before 60 seconds");
             Set(s,"elapsed",60f);Set(s,"killCount",39);Call(s,"TrySpawnBoss");Check(!BossSpawned(s),"time alone cannot summon boss before 40 kills");
             Set(s,"killCount",40);Time.timeScale=0;Call(s,"TrySpawnBoss");Call(s,"Update");Check(!BossSpawned(s) && (float)typeof(EnemySpawner).GetField("elapsed",Private).GetValue(s)==60f,"pause blocks boss and progression clock");
-            Time.timeScale=1;Call(s,"TrySpawnBoss");Check(BossSpawned(s),"both thresholds summon boss in actual scene");
+            Time.timeScale=1;s.bossWarningSeconds=0;Call(s,"TrySpawnBoss");Check(BossSpawned(s),"both thresholds summon boss in actual scene");
             int bosses=0;foreach(var e in Enemy.ActiveEnemies)if(e.isBoss)bosses++;
             Call(s,"TrySpawnBoss");int repeated=0;foreach(var e in Enemy.ActiveEnemies)if(e.isBoss)repeated++;
             Check(bosses==1 && repeated==1,"boss summons once only");

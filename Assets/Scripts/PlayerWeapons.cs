@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.UI;
 
 [RequireComponent(typeof(PlayerAutoAttack))]
 [RequireComponent(typeof(CharacterGrowth))]
@@ -16,11 +15,9 @@ public sealed class PlayerWeapons : MonoBehaviour
     PlayerAutoAttack attack;
     Renderer[] swordRenderers;
     GameObject axe;
-    Text label;
     readonly GameObject[] guns=new GameObject[3];
     readonly bool[] owned=new bool[3];
     PlayerGunCombat gunCombat;
-    int hudState=int.MinValue;
     public bool IsGun => Equipped>=Kind.Shotgun;
     public Transform GunModel => IsGun && guns[(int)Equipped-2]!=null ? guns[(int)Equipped-2].transform : null;
     public Transform GunMuzzle => GunModel!=null ? GunModel.Find("Muzzle") : null;
@@ -69,18 +66,7 @@ public sealed class PlayerWeapons : MonoBehaviour
             }
         }
         gunCombat=GetComponent<PlayerGunCombat>();if(gunCombat==null)gunCombat=gameObject.AddComponent<PlayerGunCombat>();
-        var canvas = FindFirstObjectByType<Canvas>();
-        if (canvas != null)
-        {
-            var go = new GameObject("WeaponHUD", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-            go.transform.SetParent(canvas.transform, false);
-            label = go.GetComponent<Text>();
-            label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            label.fontSize = 19; label.alignment = TextAnchor.LowerRight; label.raycastTarget = false;
-            var rect = go.GetComponent<RectTransform>();
-            rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.one;
-            rect.anchoredPosition = new Vector2(-24, -65); rect.sizeDelta = new Vector2(550, 90);
-        }
+        if(GetComponent<CombatHudView>()==null)gameObject.AddComponent<CombatHudView>();
         Refresh();
         if(WeaponTestSettings.AllGunsAtStart)
         {
@@ -90,12 +76,6 @@ public sealed class PlayerWeapons : MonoBehaviour
     }
     void Update()
     {
-        if (label != null) label.enabled = RunStats.Instance != null && RunStats.Instance.Running;
-        if(label!=null && IsGun && gunCombat!=null)
-        {
-            int state=(int)Equipped*1000000+gunCombat.Ammo*1000+gunCombat.Reserve*4+(gunCombat.IsReloading?2:gunCombat.IsCharging?1:0);
-            if(state!=hudState){hudState=state;label.text=Equipped+"  "+gunCombat.Ammo+" / "+gunCombat.Reserve+(gunCombat.IsReloading?"  RELOADING":gunCombat.IsCharging?"  CHARGING":"")+"\nLMB Fire   R Reload   1–5 Weapon";}
-        }
         if (Time.timeScale <= 0f || RunStats.Instance==null || !RunStats.Instance.Running || Keyboard.current == null) return;
         if (Keyboard.current.digit1Key.wasPressedThisFrame) TryEquip(Kind.Sword);
         if (Keyboard.current.digit2Key.wasPressedThisFrame) TryEquip(Kind.Axe);
@@ -118,16 +98,10 @@ public sealed class PlayerWeapons : MonoBehaviour
     }
     void Refresh()
     {
-        hudState=int.MinValue;
         bool isAxe = Equipped == Kind.Axe;
         if (axe != null) axe.SetActive(isAxe);
         if (swordRenderers != null) foreach (var renderer in swordRenderers) if(renderer != null) renderer.enabled = Equipped==Kind.Sword;
         for(int i=0;i<guns.Length;i++)if(guns[i]!=null)guns[i].SetActive((int)Equipped==i+2);
-        if (label != null)
-        {
-            label.text = (isAxe ? "AXE  /  WIDE & HEAVY" : "SWORD  /  QUICK SLASH") + "\n1 Sword  2 Axe  3 Shotgun  4 Machine  5 Laser" + (HasAxe ? "" : " (locked)");
-            label.color = isAxe ? new Color(1f,.72f,.3f) : Color.white;
-        }
+
     }
-    void OnDestroy() { if (label != null) Destroy(label.gameObject); }
 }

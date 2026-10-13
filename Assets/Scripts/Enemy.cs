@@ -232,6 +232,13 @@ public class Enemy : MonoBehaviour
         // wherever the creature is and fires the moment it is touching the player. Charging
         // it only while in contact meant a full second of standing still was needed before
         // the first hit, so running into a monster and moving on never cost anything.
+        // Boss patterns own damage throughout their tell, strike and recovery.
+        // Reset the contact cooldown so the recovery remains a safe counterattack window.
+        if (isBoss && externalMovement)
+        {
+            contactTimer = 0f;
+            return;
+        }
         contactTimer += Time.deltaTime;
 
         if (!pushed && contactTimer >= contactInterval && SurfaceDistanceToPlayer() <= contactGap + contactGrace)
