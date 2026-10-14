@@ -35,6 +35,7 @@ public class HealthPickup : MonoBehaviour
 
     public static void Spawn(Vector3 position, float heal)
     {
+        if(!MapNavigation.DropPoint(position,out position))return;
         var go = new GameObject("HealthPickup");
         go.transform.position = position;
         var pickup = go.AddComponent<HealthPickup>();
@@ -116,16 +117,18 @@ public class HealthPickup : MonoBehaviour
         flat.y = 0f;
         float dist = flat.magnitude;
 
-        if (dist <= pickupRadius)
+        if (dist <= pickupRadius && MapNavigation.CanCollect(transform.position,player.position))
         {
             Collect();
             return;
         }
 
-        if (dist <= magnetRadius)
+        if (dist <= magnetRadius && MapNavigation.CanCollect(transform.position,player.position))
         {
             Vector3 pull = flat.normalized * magnetSpeed * Time.deltaTime;
-            transform.position += new Vector3(pull.x, 0f, pull.z);
+            var next=transform.position+Vector3.ClampMagnitude(new Vector3(pull.x,0,pull.z),dist);
+            if(MapNavigation.Current==null)transform.position=next;
+            else if(MapNavigation.Sample(next,1.5f,out var floor)){baseY=floor.y+.75f;transform.position=new Vector3(floor.x,baseY,floor.z);}
         }
 
         transform.position = new Vector3(transform.position.x,

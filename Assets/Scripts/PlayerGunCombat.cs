@@ -63,7 +63,7 @@ public sealed class PlayerGunCombat : MonoBehaviour
     public void CancelAction(){pendingShot=false;reload=0;charge=0;charging=false;externalTrigger=false;recoil=0;}
     public void BeginReload()
     {
-        if(!Running || !weapons.IsGun || reload>0 || magazine[Index]>=Capacity(weapons.Equipped) || reserve[Index]<=0)return;
+        if(MapSandboxSettings.Enabled || !Running || !weapons.IsGun || reload>0 || magazine[Index]>=Capacity(weapons.Equipped) || reserve[Index]<=0)return;
         charging=false;charge=0;reload=ReloadTime(weapons.Equipped);GameAudio.Play(GameAudio.Sfx.GunReload);
     }
     void Update()
@@ -84,7 +84,7 @@ public sealed class PlayerGunCombat : MonoBehaviour
             weapons.TryEquip(weapons.HasAxe?PlayerWeapons.Kind.Axe:PlayerWeapons.Kind.Sword);
             return;
         }
-        bool held=externalTrigger || (ReadInput && Mouse.current!=null && Mouse.current.leftButton.isPressed);
+        bool held=externalTrigger || (ReadInput && (MobileControls.Enabled ? MobileControls.Firing : Mouse.current!=null && Mouse.current.leftButton.isPressed));
         if(!held){charging=false;charge=0;return;}
         if(cooldown>0)return;
         if(magazine[Index]<=0)
@@ -132,7 +132,7 @@ public sealed class PlayerGunCombat : MonoBehaviour
         var kind=weapons.Equipped;bool laser=kind==PlayerWeapons.Kind.LaserGun,auto=kind==PlayerWeapons.Kind.MachineGun;
         recoil=laser?1f:auto?.22f:1.8f;
         ApplyPose();var muzzle=weapons.GunMuzzle;
-        magazine[Index]--;ShotsFired++;
+        if(!MapSandboxSettings.Enabled)magazine[Index]--;ShotsFired++;
         cooldown=FireInterval;
         var origin=muzzle.position;var aimPoint=AimPoint();var direction=(aimPoint-origin).normalized;
         bool nearTarget=Vector3.Dot(aimPoint-origin,transform.forward)<.15f;

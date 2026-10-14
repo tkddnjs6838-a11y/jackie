@@ -28,16 +28,9 @@ public class OffscreenEnemyIndicator : MonoBehaviour
         refreshTimer = refreshInterval;
 
         enemies.Clear();
-        var found = FindObjectsByType<Enemy>(FindObjectsSortMode.None);
-        System.Array.Sort(found, (a, b) =>
-            ((a.transform.position - transform.position).sqrMagnitude)
-            .CompareTo((b.transform.position - transform.position).sqrMagnitude));
-
-        foreach (var enemy in found)
-        {
-            if (enemy != null && !enemy.IsDying)
-                enemies.Add(enemy);
-        }
+        foreach(var enemy in Enemy.ActiveEnemies)
+            if(enemy!=null && !enemy.IsDying)enemies.Add(enemy);
+        enemies.Sort((a,b)=>(a.transform.position-transform.position).sqrMagnitude.CompareTo((b.transform.position-transform.position).sqrMagnitude));
     }
 
     void OnGUI()

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.AI;
 
 public class Enemy : MonoBehaviour
 {
@@ -99,8 +100,42 @@ public class Enemy : MonoBehaviour
     private WaxCrackVisual crackVisual;
     private Coroutine flashRoutine;
 
+    readonly RaycastHit[] obstacleHits=new RaycastHit[128];
+    NavMeshPath chasePath;
+    readonly Vector3[] chaseCorners=new Vector3[64];
+    int cornerCount,cornerIndex;
+    float nextPath;
+    CapsuleCollider body;
+    Vector3 ChaseDirection(Vector3 direct)
+    {
+        return DirectionTo(player.position);
+    }
+
+    public Vector3 DirectionTo(Vector3 destination)
+    {
+        Vector3 direct=destination-transform.position;direct.y=0;
+        if(MapNavigation.Current==null)return direct.normalized;
+        if(Time.time>=nextPath)
+        {
+            nextPath=Time.time+.45f+Mathf.Abs(GetInstanceID()%17)*.01f;
+            cornerCount=0;cornerIndex=1;
+            if(MapNavigation.Sample(transform.position,1,out var from) && MapNavigation.Sample(destination,3,out var to)
+                && NavMesh.CalculatePath(from,to,NavMesh.AllAreas,chasePath))
+                cornerCount=chasePath.GetCornersNonAlloc(chaseCorners);
+        }
+        while(cornerIndex<cornerCount)
+        {
+            var delta=chaseCorners[cornerIndex]-transform.position;delta.y=0;
+            if(delta.sqrMagnitude>.000001f)return delta.normalized*Mathf.Min(1f,delta.magnitude/(Mathf.Max(moveSpeed,4.5f)*Mathf.Max(Time.deltaTime,.001f)));
+            cornerIndex++;
+        }
+        return Vector3.zero;
+    }
     void Awake()
     {
+        chasePath=new NavMeshPath();
+        body=GetComponent<CapsuleCollider>();
+        nextPath=Time.time+Mathf.Abs(GetInstanceID()%23)*.015f;
         crackVisual = GetComponent<WaxCrackVisual>();
         if (crackVisual == null)
             crackVisual = gameObject.AddComponent<WaxCrackVisual>();
@@ -213,15 +248,15 @@ public class Enemy : MonoBehaviour
 
         if (reach > contactGap && !externalMovement && !pushed)
         {
-            dir.Normalize();
+            dir=ChaseDirection(dir);
             // PowerUpEffects.EnemySpeedScale is 1 unless the player is holding a SLOW pickup
             MoveWithObstacles(dir * moveSpeed * PowerUpEffects.EnemySpeedScale * Time.deltaTime);
-            transform.forward = dir;
+            if(dir.sqrMagnitude>.001f)transform.forward = dir;
         }
         // snap to the ground every frame, not only while walking — otherwise anything
         // that stops next to the player keeps the height it happened to stop at
         var terrain = Terrain.activeTerrain;
-        if (terrain != null)
+        if (terrain != null && MapNavigation.Current==null)
         {
             Vector3 grounded = transform.position;
             grounded.y = terrain.SampleHeight(grounded) + terrain.transform.position.y;
@@ -265,7 +300,7 @@ public class Enemy : MonoBehaviour
 
     float BodyRadius()
     {
-        var capsule = GetComponent<CapsuleCollider>();
+        var capsule = body!=null?body:(body=GetComponent<CapsuleCollider>());
         if (capsule != null)
         {
             var s = transform.lossyScale;
@@ -389,6 +424,25 @@ public class Enemy : MonoBehaviour
         float distance = displacement.magnitude;
         if (distance <= 0.0001f) return;
 
+        if(MapNavigation.Current!=null)
+        {
+            if(!MapNavigation.MovePoint(transform.position,displacement,out var target))return;
+            displacement=target-transform.position;
+            // NavMesh supplies floor height; static obstacle casts still protect larger bodies.
+            float floorY=target.y;displacement.y=0;distance=displacement.magnitude;
+            if(distance<=.0001f)return;
+            if(!FirstBlockingHit(displacement/distance,distance,out var wall))transform.position=new Vector3(target.x,floorY,target.z);
+            else
+            {
+                var navSlide=Vector3.ProjectOnPlane(displacement,wall.normal);navSlide.y=0;
+                if(navSlide.sqrMagnitude>.00001f && MapNavigation.MovePoint(transform.position,navSlide,out var around))
+                {
+                    var flat=around-transform.position;flat.y=0;
+                    if(flat.sqrMagnitude>.00001f && !FirstBlockingHit(flat.normalized,flat.magnitude,out _))transform.position=around;
+                }
+            }
+            return;
+        }
         Vector3 direction = displacement / distance;
         if (!FirstBlockingHit(direction, distance, out RaycastHit hit))
         {
@@ -439,7 +493,7 @@ public class Enemy : MonoBehaviour
     bool FirstBlockingHit(Vector3 direction, float distance, out RaycastHit nearest)
     {
         nearest = default;
-        var capsule = GetComponent<CapsuleCollider>();
+        var capsule = body!=null?body:(body=GetComponent<CapsuleCollider>());
         if (capsule == null) return false;
 
         Bounds bounds = capsule.bounds;
@@ -447,17 +501,31 @@ public class Enemy : MonoBehaviour
         float halfLine = Mathf.Max(0f, bounds.extents.y - radius);
         Vector3 pointA = bounds.center + Vector3.up * halfLine;
         Vector3 pointB = bounds.center - Vector3.up * halfLine;
+        if(MapNavigation.Current!=null)
+        {
+            // Several imported capsules extend below their foot pivot. Do not cast
+            // that buried half into bridges/ramps and misclassify the floor as a wall.
+            pointB.y=Mathf.Max(pointB.y,transform.position.y+radius+.08f);
+            pointA.y=Mathf.Max(pointA.y,pointB.y);
+        }
 
-        RaycastHit[] hits = Physics.CapsuleCastAll(pointA, pointB, radius, direction,
-                                                   distance + 0.04f, ~0,
-                                                   QueryTriggerInteraction.Ignore);
+        int hitCount=Physics.CapsuleCastNonAlloc(pointA,pointB,radius,direction,obstacleHits,distance+.04f,~0,QueryTriggerInteraction.Ignore);
+        if(hitCount==obstacleHits.Length){nearest.distance=0;return true;}
         float nearestDistance = float.MaxValue;
         bool found = false;
 
-        foreach (var candidate in hits)
+        for(int hitIndex=0;hitIndex<hitCount;hitIndex++)
         {
+            var candidate=obstacleHits[hitIndex];
             Collider other = candidate.collider;
             if (other == null || other == capsule || other is TerrainCollider) continue;
+            if(MapNavigation.Current!=null)
+            {
+                if(candidate.normal.y>=MapNavigation.WalkableNormalY)continue;
+                // A baked, connected step is traversable even when the capsule
+                // touches its vertical riser. Tall props still block and require a route.
+                if(other.bounds.max.y<=transform.position.y+MapNavigation.StepHeight)continue;
+            }
             if (other.transform.IsChildOf(transform)) continue;
             if (other.GetComponentInParent<Enemy>() != null) continue;
             if (player != null && (other.transform == player || other.transform.IsChildOf(player))) continue;

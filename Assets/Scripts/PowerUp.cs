@@ -31,7 +31,7 @@ public class PowerUp : MonoBehaviour
 
     public static void Spawn(Vector3 position, PowerUpEffects.Kind kind)
     {
-        if(Terrain.activeTerrain!=null)position.y=Terrain.activeTerrain.SampleHeight(position)+Terrain.activeTerrain.transform.position.y;
+        if(!MapNavigation.DropPoint(position,out position))return ;
         var go = new GameObject("PowerUp_" + PowerUpEffects.NameOf(kind));
         go.SetActive(false);
         go.transform.position = position;
@@ -124,10 +124,14 @@ public class PowerUp : MonoBehaviour
         flat.y = 0f;
         float dist = flat.magnitude;
 
-        if (dist < magnetRadius)
-            transform.position += flat.normalized * magnetSpeed * (1f - dist / magnetRadius) * Time.deltaTime;
+        if (dist < magnetRadius && MapNavigation.CanCollect(transform.position,player.position))
+        {
+            var next=transform.position+flat.normalized*Mathf.Min(dist,magnetSpeed*Time.deltaTime);
+            if(MapNavigation.Current==null)transform.position=next;
+            else if(MapNavigation.Sample(next,1.5f,out var floor)){baseY=floor.y+.75f;transform.position=new Vector3(floor.x,baseY,floor.z);}
+        }
 
-        if (dist <= pickupRadius)
+        if (dist <= pickupRadius && MapNavigation.CanCollect(transform.position,player.position))
         {
             var effects=player.GetComponent<PowerUpEffects>();
             var health=player.GetComponent<PlayerHealth>();

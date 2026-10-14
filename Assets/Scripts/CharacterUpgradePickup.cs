@@ -15,7 +15,7 @@ public sealed class CharacterUpgradePickup : MonoBehaviour
     public static CharacterUpgradePickup Spawn(Vector3 position,CharacterGrowth.Kind kind)
     {
         if(ActiveCount>=2)return null;
-        if(Terrain.activeTerrain!=null)position.y=Terrain.activeTerrain.SampleHeight(position)+Terrain.activeTerrain.transform.position.y;
+        if(!MapNavigation.DropPoint(position,out position))return null;
         var go=new GameObject("CharacterUpgrade_"+kind);go.SetActive(false);
         go.transform.position=position+Vector3.up*.65f;
         var pickup=go.AddComponent<CharacterUpgradePickup>();pickup.kind=kind;go.SetActive(true);return pickup;
@@ -43,7 +43,7 @@ public sealed class CharacterUpgradePickup : MonoBehaviour
         float distanceSquared=PlayerDistanceSquared();
         if(distanceSquared>RearmRadius*RearmRadius)readyToCollect=true;
         if(!readyToCollect || age<CollectDelay || distanceSquared>CollectRadius*CollectRadius)return;
-        if(choices==null || !choices.TryOffer(player))return;
+        if(!MapNavigation.CanCollect(transform.position,player.transform.position) || choices==null || !choices.TryOffer(player))return;
         collected=true;Destroy(gameObject);
     }
     float PlayerDistanceSquared()

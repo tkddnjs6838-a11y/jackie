@@ -177,24 +177,24 @@ public class PlayerAutoAttack : MonoBehaviour
 
         if(weapons!=null && weapons.IsGun){bufferTimer=0;comboStep=0;return;}
         var mouse = Mouse.current;
-        if (mouse == null) return;
+        if (!MobileControls.Enabled && mouse == null) return;
 
         bufferTimer = Mathf.Max(0f, bufferTimer - Time.deltaTime);
 
         // Read new clicks after aging the buffer so a slow frame cannot discard them.
-        if (mouse.leftButton.wasPressedThisFrame)
+        if (MobileControls.Enabled ? MobileControls.Firing : mouse.leftButton.wasPressedThisFrame)
         {
             bufferedStrong = false;
             bufferTimer = inputBufferSeconds;
         }
-        else if (mouse.rightButton.wasPressedThisFrame)
+        else if (!MobileControls.Enabled && mouse.rightButton.wasPressedThisFrame)
         {
             bufferedStrong = true;
             bufferTimer = inputBufferSeconds;
         }
 
         // Preserve an explicitly buffered click over a held right button.
-        if (bufferTimer <= 0f && holdToAttack && mouse.rightButton.isPressed)
+        if (bufferTimer <= 0f && holdToAttack && !MobileControls.Enabled && mouse.rightButton.isPressed)
         {
             bufferedStrong = true;
             bufferTimer = inputBufferSeconds;

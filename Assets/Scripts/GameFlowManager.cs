@@ -23,6 +23,7 @@ public class GameFlowManager : MonoBehaviour
     {
         // Statics survive SceneManager.LoadScene, so clear the boss flag on every (re)start.
         Enemy.ResetRunState();
+        if(GetComponent<MapSandbox>()==null)gameObject.AddComponent<MapSandbox>();
 
         Time.timeScale = 0f;
         Cursor.lockState = CursorLockMode.None;
@@ -39,6 +40,8 @@ public class GameFlowManager : MonoBehaviour
             startView.ShowTestMode(WeaponTestSettings.AllGunsAtStart);
         }
         if (victoryPanel != null) victoryPanel.SetActive(false);
+        retryButton=RunResultView.Build(gameOverPanel,false);
+        victoryRetryButton=RunResultView.Build(victoryPanel,true);
 
         if (startButton != null) startButton.onClick.AddListener(OnStartClicked);
         if (retryButton != null) retryButton.onClick.AddListener(OnRetryClicked);
@@ -70,8 +73,8 @@ public class GameFlowManager : MonoBehaviour
         started = true;
         if (startPanel != null) startPanel.SetActive(false);
         Time.timeScale = 1f;
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        Cursor.lockState = MobileControls.Enabled ? CursorLockMode.None : CursorLockMode.Locked;
+        Cursor.visible = MobileControls.Enabled;
 
         if (RunStats.Instance != null) RunStats.Instance.BeginRun();
         // browsers only allow audio to start after a real click, so the run button is the
@@ -117,6 +120,8 @@ public class GameFlowManager : MonoBehaviour
             "\nRecords    " + RunStats.FormatTime(stats.BestTime) + "    " + stats.BestKills + " kills    x" + stats.BestCombo;
     }
 
+    public void CompleteStages() { HandlePlayerWon(); }
+
     void HandlePlayerWon()
     {
         if (!started || finished) return;
@@ -134,6 +139,8 @@ public class GameFlowManager : MonoBehaviour
     void CloseGameplayPanels()
     {
         Time.timeScale = 0f;
+        foreach (var guide in FindObjectsByType<ObjectiveGuide>(FindObjectsSortMode.None)) guide.ResetGuide();
+        GetComponent<MapSandbox>()?.HideHud();
         if (startPanel != null) startPanel.SetActive(false);
         var upgrades = FindFirstObjectByType<UpgradeSystem>();
         if (upgrades != null) upgrades.CancelChoices();
@@ -148,6 +155,6 @@ public class GameFlowManager : MonoBehaviour
     void OnRetryClicked()
     {
         Time.timeScale = 1f;
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        SceneManager.LoadScene(gameObject.scene.name);
     }
 }

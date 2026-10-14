@@ -8,6 +8,21 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/SampleScene.unity
     guid: 99c9720ab356a0642a771bea13969a05
+  - enabled: 1
+    path: Assets/Design/Scenes/Map01_Meadow.unity
+    guid: 07f4ad54dfe708c469f5ebba1573f337
+  - enabled: 1
+    path: Assets/Design/Scenes/Map02_Canyon.unity
+    guid: c52d0686fb51df84692c96d87c31e1bd
+  - enabled: 1
+    path: Assets/Design/Scenes/Map03_WaxLake.unity
+    guid: bac5a63ebc19d7649964366d8119d806
+  - enabled: 1
+    path: Assets/Design/Scenes/Map04_CrystalPlateau.unity
+    guid: 4f4507c42f21a9a47a4a0ec5906b0d61
+  - enabled: 1
+    path: Assets/Design/Scenes/Map05_Crater.unity
+    guid: 8b7c1cf06e6770b4a9fbb252d165fd9e
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0

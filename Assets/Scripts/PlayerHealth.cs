@@ -13,7 +13,7 @@ public class PlayerHealth : MonoBehaviour
     private PowerUpEffects effects;
     public bool IsDead => isDead;
 
-    public bool IsInvincible { get { return invincibilityTimer > 0f || (effects != null && effects.ShieldActive); } }
+    public bool IsInvincible { get { return MapSandboxSettings.Enabled || invincibilityTimer > 0f || (effects != null && effects.ShieldActive); } }
 
     /// <summary>Grants i-frames from outside, e.g. for the duration of a dash.</summary>
     public void GrantInvincibility(float duration)

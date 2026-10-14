@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.AI;
 
 /// <summary>
 /// Hangs back at a distance, telegraphs, then rushes in a straight line. If the rush
@@ -30,6 +31,10 @@ public class EnemyCharger : MonoBehaviour
     private Transform player;
     private State state = State.Reposition;
     private float timer;
+    private NavMeshPath repositionPath;
+    private readonly Vector3[] repositionCorners=new Vector3[64];
+    private Vector3 repositionTarget;
+    private float nextReposition;
     private Vector3 chargeDir;
     private float chargeTravelled;
     private Renderer[] renderers;
@@ -41,6 +46,7 @@ private Color restColor;
 
 void Awake()
     {
+        repositionPath=new NavMeshPath();
         enemy = GetComponent<Enemy>();
         enemy.externalMovement = true;
         // White is a neutral material multiplier, so textured VARCO models keep
@@ -82,14 +88,23 @@ void Awake()
         // hold a ring around the player: close in when far, back off when too near
         Vector3 dir = toPlayer.normalized;
         float error = dist - preferredDistance;
-        if (Mathf.Abs(error) > 0.6f)
+        bool clearAttack=ClearAttackRoute(transform.position,player.position);
+        if (Mathf.Abs(error) > 0.6f || !clearAttack)
         {
-            enemy.MoveAvoidingObstacles(dir * Mathf.Sign(error) * repositionSpeed * PowerUpEffects.EnemySpeedScale * Time.deltaTime);
+            // Reposition follows a route around props; only the attack is a straight rush.
+            if(Time.time>=nextReposition)
+            {
+                nextReposition=Time.time+.6f;
+                repositionTarget=FindRepositionTarget();
+            }
+            Vector3 destination=repositionTarget;
+            Vector3 route=enemy.DirectionTo(destination);
+            enemy.MoveAvoidingObstacles(route * repositionSpeed * PowerUpEffects.EnemySpeedScale * Time.deltaTime);
             transform.forward = dir;
         }
 
         timer -= Time.deltaTime;
-        if (timer <= 0f && Mathf.Abs(error) <= 2.5f)
+        if (timer <= 0f && clearAttack && (Mathf.Abs(error) <= 2.5f || dist<preferredDistance))
         {
             state = State.WindUp;
             timer = windUpTime;
@@ -111,12 +126,45 @@ void Awake()
         }
     }
 
+    bool ClearAttackRoute(Vector3 from,Vector3 to)
+    {
+        return MapNavigation.Current==null || (MapNavigation.Sample(from,1,out var a)
+            && MapNavigation.Sample(to,3,out var b) && !NavMesh.Raycast(a,b,out _,NavMesh.AllAreas));
+    }
+
+    Vector3 FindRepositionTarget()
+    {
+        Vector3 away=transform.position-player.position;away.y=0;
+        if(away.sqrMagnitude<.01f)away=transform.forward;
+        if(MapNavigation.Current==null)return player.position+away.normalized*preferredDistance;
+        if(!MapNavigation.Sample(transform.position,1,out var from))return transform.position;
+        Vector3 best=player.position;float bestLength=float.PositiveInfinity;
+        // A straight backward retreat can end inside a pillar or cliff. Pick a
+        // reachable firing position around the player, including sideways exits.
+        for(int i=0;i<16;i++)
+        {
+            var candidate=player.position+Quaternion.Euler(0,i*22.5f,0)*away.normalized*preferredDistance;
+            if(!MapNavigation.Sample(candidate,3,out candidate) || !MapNavigation.Clear(candidate,.6f)
+                || !ClearAttackRoute(candidate,player.position))continue;
+            if(!NavMesh.CalculatePath(from,candidate,NavMesh.AllAreas,repositionPath)
+                || repositionPath.status!=NavMeshPathStatus.PathComplete)continue;
+            int count=repositionPath.GetCornersNonAlloc(repositionCorners);float length=0;
+            for(int j=1;j<count;j++)length+=Vector3.Distance(repositionCorners[j-1],repositionCorners[j]);
+            if(length<bestLength){bestLength=length;best=candidate;}
+        }
+        return best;
+    }
+
     void Charge()
     {
         Tint(windUpColor);
         float step = Mathf.Min(chargeSpeed * PowerUpEffects.EnemySpeedScale * Time.deltaTime, chargeDistance - chargeTravelled);
+        Vector3 before=transform.position;
         enemy.MoveAvoidingObstacles(chargeDir * step);
-        chargeTravelled += step;
+        Vector3 moved=transform.position-before;moved.y=0;
+        chargeTravelled += moved.magnitude;
+        // Hitting a structure ends the rush instead of repeatedly pushing into it.
+        if(moved.magnitude<step*.25f)chargeTravelled=chargeDistance;
 
         if (chargeTravelled >= chargeDistance)
         {
@@ -142,6 +190,7 @@ timer = restBetweenCharges;
 
     void Ground()
     {
+        if(MapNavigation.Current!=null)return;
         var terrain = Terrain.activeTerrain;
         if (terrain == null) return;
         Vector3 p = transform.position;

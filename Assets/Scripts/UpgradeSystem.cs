@@ -129,13 +129,14 @@ public sealed class UpgradeSystem : MonoBehaviour
         var scaler=choicePanel.GetComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1280,720);scaler.matchWidthOrHeight=.5f;
         choicePanel.GetComponent<Image>().color=new Color(.015f,.025f,.045f,.94f);
         var font=Resources.Load<Font>("UI/AugmentKorean");
-        MakeText(choicePanel.transform,"Title","증강을 선택하세요",font,36,new Vector2(0,265),new Vector2(1100,60));
+        MakeText(choicePanel.transform,"Title","증강 선택",font,36,new Vector2(0,265),new Vector2(1100,60));
         MakeText(choicePanel.transform,"Hint","상자 1개 · 효과 1개 선택 · 이번 판 동안 유지",font,20,new Vector2(0,212),new Vector2(1100,45));
         for(int i=0;i<3;i++)
         {
             var card=new GameObject("Choice"+i,typeof(RectTransform),typeof(Image),typeof(Button));card.transform.SetParent(choicePanel.transform,false);
             var rect=card.GetComponent<RectTransform>();rect.anchorMin=rect.anchorMax=rect.pivot=new Vector2(.5f,.5f);rect.sizeDelta=new Vector2(350,330);rect.anchoredPosition=new Vector2((i-1)*380,-5);
-            card.GetComponent<Image>().color=new Color(.12f,.22f,.34f);
+            GameUiStyle.Apply(card.GetComponent<Image>(),new Color(.06f,.09f,.13f));GameUiStyle.Accent(card.transform);
+            var frame=card.AddComponent<Outline>();frame.effectColor=new Color(.35f,.43f,.5f);frame.effectDistance=new Vector2(1,-1);
             buttons[i]=card.GetComponent<Button>();int selected=i;buttons[i].onClick.AddListener(()=>Choose(selected));
             labels[i]=MakeText(card.transform,"Effect","",font,23,Vector2.zero,new Vector2(310,295));
         }
@@ -145,7 +146,7 @@ public sealed class UpgradeSystem : MonoBehaviour
     {
         var go=new GameObject(name,typeof(RectTransform),typeof(Text));go.transform.SetParent(parent,false);
         var rect=go.GetComponent<RectTransform>();rect.anchorMin=rect.anchorMax=rect.pivot=new Vector2(.5f,.5f);rect.anchoredPosition=at;rect.sizeDelta=bounds;
-        var text=go.GetComponent<Text>();text.font=font;text.fontSize=size;text.color=Color.white;text.alignment=TextAnchor.MiddleCenter;text.text=content;text.raycastTarget=false;
+        var text=go.GetComponent<Text>();text.font=font;text.fontSize=size;text.fontStyle=size>=30?FontStyle.Bold:FontStyle.Normal;text.color=size>=30?GameUiStyle.Gold:Color.white;text.alignment=TextAnchor.MiddleCenter;text.text=content;text.raycastTarget=false;
         return text;
     }
 }

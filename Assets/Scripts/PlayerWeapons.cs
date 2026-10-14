@@ -68,8 +68,9 @@ public sealed class PlayerWeapons : MonoBehaviour
         gunCombat=GetComponent<PlayerGunCombat>();if(gunCombat==null)gunCombat=gameObject.AddComponent<PlayerGunCombat>();
         if(GetComponent<CombatHudView>()==null)gameObject.AddComponent<CombatHudView>();
         Refresh();
-        if(WeaponTestSettings.AllGunsAtStart)
+        if(WeaponTestSettings.AllGunsAtStart || MapSandboxSettings.Enabled)
         {
+            if(MapSandboxSettings.Enabled)CollectAxe();
             CollectGun(Kind.Shotgun);CollectGun(Kind.MachineGun);CollectGun(Kind.LaserGun);
             TryEquip(Kind.Shotgun);
         }

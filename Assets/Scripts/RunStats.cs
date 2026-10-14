@@ -78,6 +78,7 @@ public class RunStats : MonoBehaviour
         if (!Running) return;
         Running = false;
 
+        if (MapSandboxSettings.Enabled) return;
         if (Kills > BestKills) PlayerPrefs.SetInt(KeyKills, Kills);
         if (BestComboThisRun > BestCombo) PlayerPrefs.SetInt(KeyCombo, BestComboThisRun);
         if (SurvivalTime > BestTime) PlayerPrefs.SetFloat(KeyTime, SurvivalTime);

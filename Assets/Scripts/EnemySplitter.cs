@@ -61,8 +61,7 @@ public class EnemySplitter : MonoBehaviour
             Vector3 offset = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * spreadRadius;
             Vector3 at = transform.position + offset;
 
-            var terrain = Terrain.activeTerrain;
-            if (terrain != null) at.y = terrain.SampleHeight(at) + terrain.transform.position.y;
+            if(!MapNavigation.SpawnPoint(at,.35f,out at))return;
 
             // clone this creature rather than a prefab, so a second-generation child
             // inherits whatever the first generation already had

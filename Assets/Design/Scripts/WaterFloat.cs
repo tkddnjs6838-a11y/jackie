@@ -3,8 +3,8 @@ using UnityEngine;
 
 // Makes everything that wades into the water float half submerged, with a slow bob.
 // Sits on a trigger volume covering everything below the waterline (land is above it).
-//  - Monsters: Enemy.Update snaps them to the terrain every frame; LateUpdate lifts the ones
-//    in the water so their middle sits on the waterline. Taller monsters (the boss) keep wading.
+//  - Monsters: pathfinding uses a baked water plane; LateUpdate keeps their middle
+//    on the waterline. Taller monsters (the boss) keep wading on the riverbed.
 //  - Player: a small hidden raft follows under the player's feet while it is in the water,
 //    so the CharacterController stands on it. It is only player-sized, because the monsters'
 //    movement casts treat every collider as a wall and a map-wide floor stopped them at the bank.
@@ -20,6 +20,30 @@ public class WaterFloat : MonoBehaviour
     readonly Dictionary<Enemy, float> floating = new Dictionary<Enemy, float>();
     readonly List<Enemy> gone = new List<Enemy>();
 
+    static readonly HashSet<WaterFloat> volumes=new HashSet<WaterFloat>();
+    public float NavigationHeight => waterline-playerDepth;
+    public float Waterline => waterline;
+    public Bounds VolumeBounds => GetComponent<BoxCollider>().bounds;
+    void OnEnable(){volumes.Add(this);}
+    void OnDisable(){volumes.Remove(this);}
+    // Only project underwater points in this water volume; dry land retains strict
+    // NavMesh sampling so a nearby cliff cannot become a shortcut.
+    public static bool NavigationPoint(Vector3 position,out Vector3 projected)
+    {
+        projected=position;
+        foreach(var water in volumes)
+        {
+            if(water==null)continue;
+            var bounds=water.VolumeBounds;
+            if(position.x<bounds.min.x || position.x>bounds.max.x || position.z<bounds.min.z || position.z>bounds.max.z || position.y>water.waterline+.5f)continue;
+            var terrain=Terrain.activeTerrain;
+            if(terrain==null)continue;
+            float ground=terrain.SampleHeight(position)+terrain.transform.position.y;
+            if(ground>=water.NavigationHeight)continue;
+            projected.y=water.NavigationHeight;return true;
+        }
+        return false;
+    }
     CharacterController swimmer;
     Transform raft;
 
@@ -76,12 +100,14 @@ public class WaterFloat : MonoBehaviour
             }
             var t = pair.Key.transform;
             var p = t.position;
+            if(p.y>waterline+.05f)continue; // Do not pull bridge walkers down through their deck.
             float floatY = waterline - pair.Value + bob;
-            if (p.y < floatY)
-            {
-                p.y = floatY;
-                t.position = p;
-            }
+            var terrain=Terrain.activeTerrain;
+            float ground=terrain!=null?terrain.SampleHeight(p)+terrain.transform.position.y:p.y;
+            // Keep large creatures wading, while small ones float. Navigation uses
+            // the shared water plane independently of this visual/pivot height.
+            p.y=Mathf.Max(ground,floatY);
+            t.position=p;
         }
         foreach (var dead in gone) floating.Remove(dead);
         gone.Clear();

@@ -23,7 +23,7 @@ public sealed class WeaponPickup : MonoBehaviour
         transform.Rotate(0, 35f * Time.deltaTime, 0);
         if (player == null) return;
         var distance = player.transform.position - transform.position; distance.y = 0;
-        if (distance.sqrMagnitude <= 1.3f * 1.3f && player.CollectAxe())
+        if (distance.sqrMagnitude <= 1.3f * 1.3f && MapNavigation.CanCollect(transform.position,player.transform.position) && player.CollectAxe())
         {
             collected = true; GameAudio.Play(GameAudio.Sfx.Pickup); Destroy(gameObject);
         }
@@ -32,7 +32,7 @@ public sealed class WeaponPickup : MonoBehaviour
     {
         var prefab = Resources.Load<GameObject>("Weapons/AxeCrate");
         if (prefab == null) return false;
-        if (Terrain.activeTerrain != null) at.y = Terrain.activeTerrain.SampleHeight(at) + Terrain.activeTerrain.transform.position.y;
+        if(!MapNavigation.DropPoint(at,out at))return false;
         Instantiate(prefab, at + Vector3.up * .35f, Quaternion.identity); return true;
     }
 }

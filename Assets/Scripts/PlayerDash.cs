@@ -57,20 +57,22 @@ public class PlayerDash : MonoBehaviour
         }
 
         var kb = Keyboard.current;
-        if (kb == null) return;
-
-        if (kb.spaceKey.wasPressedThisFrame && cooldownTimer <= 0f)
+        bool pressed=MobileControls.Enabled ? MobileControls.TakeDash() : kb!=null && kb.spaceKey.wasPressedThisFrame;
+        if (pressed && cooldownTimer <= 0f)
             StartDash(ReadDirection(kb));
     }
 
     Vector3 ReadDirection(Keyboard kb)
     {
-        Vector2 input = Vector2.zero;
+        Vector2 input = MobileControls.Enabled ? MobileControls.Move : Vector2.zero;
+        if(!MobileControls.Enabled && kb!=null)
+        {
         if (kb.wKey.isPressed) input.y += 1f;
         if (kb.sKey.isPressed) input.y -= 1f;
         if (kb.dKey.isPressed) input.x += 1f;
         if (kb.aKey.isPressed) input.x -= 1f;
 
+        }
         // no stick input means dodge the way the player faces
         if (input.sqrMagnitude < 0.01f) return transform.forward;
 

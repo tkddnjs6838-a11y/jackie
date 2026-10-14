@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.AI;
 
 /// <summary>
 /// After the boss dies, points the player back to the goal zone:
@@ -25,9 +26,32 @@ public class ObjectiveGuide : MonoBehaviour
 
     private float bannerTimer;
     private Camera cam;
+    NavMeshPath route;
+    readonly Vector3[] corners=new Vector3[64];
+    Vector3 waypoint;
+    float routeDistance,nextRoute;
+    bool stageGuide;
+    public void SetStageTarget(Transform destination,bool finalStage)
+    {
+        ResetGuide();target=destination;stageGuide=true;
+        bannerMessage=finalStage?"최종 보스 격파 · 출구로 이동하세요":"스테이지 클리어 · 다음 포탈이 열렸습니다";
+        distanceFormat="포탈까지 {0} m";
+        if(guideRoot!=null)GameUiStyle.Apply(guideRoot.GetComponent<Image>(),GameUiStyle.Ink);
+        if(bannerRoot!=null)GameUiStyle.Apply(bannerRoot.GetComponent<Image>(),GameUiStyle.Ink);
+        var font=Resources.Load<Font>("UI/AugmentKorean");
+        if(distanceText!=null){distanceText.font=font;distanceText.color=new Color(.84f,.86f,.84f);}
+        if(bannerText!=null){bannerText.font=font;bannerText.color=new Color(.84f,.86f,.84f);bannerText.fontSize=24;}
+    }
+    public void ResetGuide()
+    {
+        bannerTimer=0;nextRoute=0;target=null;
+        if(guideRoot!=null)guideRoot.SetActive(false);
+        if(bannerRoot!=null)bannerRoot.SetActive(false);
+    }
 
     void Awake()
     {
+        route=new NavMeshPath();
         if (target == null)
         {
             var zone = GameObject.Find("WinZone");
@@ -60,6 +84,7 @@ public class ObjectiveGuide : MonoBehaviour
 
     void HandleBossDefeated()
     {
+        if(target==null)return;
         if (guideRoot != null) guideRoot.SetActive(true);
 
         if (bannerRoot != null)
@@ -78,6 +103,8 @@ public class ObjectiveGuide : MonoBehaviour
 
     void Update()
     {
+        if(stageGuide && (RunStats.Instance==null || !RunStats.Instance.Running))
+        {if(guideRoot!=null)guideRoot.SetActive(false);if(bannerRoot!=null)bannerRoot.SetActive(false);return;}
         if (bannerTimer > 0f)
         {
             bannerTimer -= Time.unscaledDeltaTime;
@@ -92,14 +119,32 @@ public class ObjectiveGuide : MonoBehaviour
         if (cam == null) return;
 
         // --- distance (horizontal only, so height differences don't inflate it) ---
-        Vector3 flat = target.position - player.position;
+        waypoint=target.position;
+        if(stageGuide && Time.unscaledTime>=nextRoute)
+        {
+            nextRoute=Time.unscaledTime+.3f;routeDistance=0;
+            if(MapNavigation.Sample(player.position,3,out var from) && MapNavigation.Sample(target.position,2,out var to)
+                && NavMesh.CalculatePath(from,to,NavMesh.AllAreas,route) && route.status==NavMeshPathStatus.PathComplete)
+            {
+                int count=route.GetCornersNonAlloc(corners);
+                for(int i=1;i<count;i++)routeDistance+=Vector3.Distance(corners[i-1],corners[i]);
+            }
+            else route.ClearCorners();
+        }
+        if(stageGuide)
+        {
+            int count=route.GetCornersNonAlloc(corners);
+            for(int i=1;i<count;i++)if((corners[i]-player.position).sqrMagnitude>1f){waypoint=corners[i];break;}
+        }
+        Vector3 flat = waypoint - player.position;
         flat.y = 0f;
-        float dist = flat.magnitude;
+        Vector3 toGoal=target.position-player.position;toGoal.y=0;
+        float dist = toGoal.magnitude;
 
         if (distanceText != null)
             distanceText.text = dist <= arrivedDistance
-                ? "Goal  arrived"
-                : string.Format(distanceFormat, Mathf.RoundToInt(dist));
+                ? (stageGuide?"E  포탈 입장":"Goal  arrived")
+                : string.Format(distanceFormat, Mathf.RoundToInt(stageGuide?Mathf.Max(dist,routeDistance):dist));
 
         // --- arrow rotation toward the target ---
         // Bearing is taken in world space rather than screen space: WorldToScreenPoint

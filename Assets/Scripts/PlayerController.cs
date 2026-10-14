@@ -23,7 +23,9 @@ public class PlayerController : MonoBehaviour
     void Awake()
     {
         controller = GetComponent<CharacterController>();
+        if(GetComponent<PlayerGroundSafety>()==null)gameObject.AddComponent<PlayerGroundSafety>();
         dash = GetComponent<PlayerDash>();
+        if(GetComponent<MobileControls>()==null)gameObject.AddComponent<MobileControls>();
 
         if (animator == null)
             animator = GetComponentInChildren<Animator>();
@@ -46,9 +48,9 @@ public class PlayerController : MonoBehaviour
     void HandleLook()
     {
         var mouse = Mouse.current;
-        if (mouse == null) return;
+        if (!MobileControls.Enabled && mouse == null) return;
 
-        Vector2 delta = mouse.delta.ReadValue() * mouseSensitivity * 0.05f;
+        Vector2 delta = MobileControls.Enabled ? MobileControls.TakeLook() : mouse.delta.ReadValue() * mouseSensitivity * 0.05f;
         transform.Rotate(Vector3.up * delta.x);
 
         pitch = Mathf.Clamp(pitch - delta.y, -10f, 60f);
@@ -59,13 +61,14 @@ public class PlayerController : MonoBehaviour
     void HandleMove()
     {
         var kb = Keyboard.current;
-        if (kb == null) return;
-
-        Vector2 input = Vector2.zero;
+        Vector2 input = MobileControls.Enabled ? MobileControls.Move : Vector2.zero;
+        if(!MobileControls.Enabled && kb!=null)
+        {
         if (kb.wKey.isPressed) input.y += 1f;
         if (kb.sKey.isPressed) input.y -= 1f;
         if (kb.dKey.isPressed) input.x += 1f;
         if (kb.aKey.isPressed) input.x -= 1f;
+        }
         input = Vector2.ClampMagnitude(input, 1f);
 
         Vector3 move = (transform.right * input.x + transform.forward * input.y) * moveSpeed * (GetComponent<CharacterGrowth>()?.MoveMultiplier ?? 1f);

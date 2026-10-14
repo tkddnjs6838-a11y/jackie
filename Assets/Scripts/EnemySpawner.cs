@@ -68,6 +68,23 @@ public class EnemySpawner : MonoBehaviour
     public Vector3 BossArrivalPosition => bossArrivalPosition;
     private float nextEliteAt = -1f;
 
+    int stageIndex=-1;
+    public void ConfigureStage(int index)
+    {
+        stageIndex=index;CancelBossWarning();timer=elapsed=0;killCount=0;
+        firstChargerSpawned=index==0;bossSpawned=false;nextEliteAt=-1;
+        killsToSpawnBoss=index==0?12:20+index*5;bossEarliestSeconds=index==0?30:45+index*10;
+        UpdateKillCountText();
+    }
+    bool StageAllows(GameObject prefab)
+    {
+        if(stageIndex<0)return true;
+        if(prefab.GetComponent<EnemyCharger>()!=null)return stageIndex>=1;
+        if(prefab.GetComponent<EnemySplitter>()!=null)return stageIndex>=2;
+        if(prefab.GetComponent<EnemyWarden>()!=null)return stageIndex>=3;
+        return true;
+    }
+
     void Start()
     {
         UpdateKillCountText();
@@ -100,7 +117,7 @@ public class EnemySpawner : MonoBehaviour
         if(RunStats.Instance==null || !RunStats.Instance.Running || Time.timeScale<=0 || bossSpawned || BossWarningActive
             || elapsed<bossEarliestSeconds || killCount<killsToSpawnBoss || bossPrefab==null)return;
         if(!TryFindSpawnPoint(out bossArrivalPosition,bossClearRadius))return;
-        if(bossWarningSeconds<=0){Instantiate(bossPrefab,bossArrivalPosition,Quaternion.identity);bossSpawned=true;return;}
+        if(bossWarningSeconds<=0){SpawnConfiguredBoss();bossSpawned=true;return;}
         bossWarningRemaining=bossWarningSeconds;
         bossWarning=BossArrivalWarning.Create(bossArrivalPosition,bossClearRadius);
         bossWarning.SetRemaining(bossWarningRemaining);
@@ -117,7 +134,7 @@ public class EnemySpawner : MonoBehaviour
         // If the player or a prop occupies the marked spot, start a fresh warning elsewhere.
         bool clear=player!=null && offset.sqrMagnitude>(bossClearRadius+1f)*(bossClearRadius+1f)
             && !IsSpawnBlocked(bossArrivalPosition,bossClearRadius);
-        if(clear && bossPrefab!=null){Instantiate(bossPrefab,bossArrivalPosition,Quaternion.identity);bossSpawned=true;}
+        if(clear && bossPrefab!=null){SpawnConfiguredBoss();bossSpawned=true;}
         CancelBossWarning();
     }
     void CancelBossWarning()
@@ -136,6 +153,7 @@ public class EnemySpawner : MonoBehaviour
     {
         TickBossWarning(Time.deltaTime);
         if (Time.timeScale <= 0f || RunStats.Instance == null || !RunStats.Instance.Running) return;
+        if(stageIndex==0 && (bossSpawned || BossWarningActive))return;
         elapsed += Time.deltaTime;
         timer += Time.deltaTime;
 
@@ -174,9 +192,9 @@ public class EnemySpawner : MonoBehaviour
         return Mathf.Min(maxDamageMultiplier, 1f + hundreds * damagePerHundredKills);
     }
 
-    public float CurrentSpawnInterval => Mathf.Max(.1f, Mathf.Max(minInterval, initialInterval - elapsed / 60f * intervalDecayPerMinute));
-    public int CurrentAliveCap => Mathf.Min(maxAliveEnemies, 18 + Mathf.FloorToInt(elapsed / 60f) * 6);
-    public int CurrentWaveCount => Mathf.Min(3, enemiesPerSpawn + Mathf.FloorToInt(elapsed / 90f));
+    public float CurrentSpawnInterval => stageIndex==0?1.6f:Mathf.Max(.1f, Mathf.Max(minInterval, initialInterval - elapsed / 60f * intervalDecayPerMinute));
+    public int CurrentAliveCap => stageIndex==0?24:Mathf.Min(maxAliveEnemies, 18 + Mathf.FloorToInt(elapsed / 60f) * 6);
+    public int CurrentWaveCount => stageIndex==0?2:Mathf.Min(3, enemiesPerSpawn + Mathf.FloorToInt(elapsed / 90f));
 
     public int KillCount { get { return killCount; } }
 
@@ -189,6 +207,7 @@ public class EnemySpawner : MonoBehaviour
     /// </summary>
     void PromoteDueElite()
     {
+        if(stageIndex==0)return;
         if (nextEliteAt < 0f) nextEliteAt = eliteFirstAt;
         if (elapsed < nextEliteAt) return;
 
@@ -229,7 +248,7 @@ public class EnemySpawner : MonoBehaviour
         float total = 0f;
         foreach (var v in variants)
         {
-            if (v == null || v.prefab == null) continue;
+            if (v == null || v.prefab == null || !StageAllows(v.prefab)) continue;
             if (elapsed < v.unlockAfterSeconds) continue;
             total += Mathf.Max(0f, v.weight);
         }
@@ -239,7 +258,7 @@ public class EnemySpawner : MonoBehaviour
         float acc = 0f;
         foreach (var v in variants)
         {
-            if (v == null || v.prefab == null) continue;
+            if (v == null || v.prefab == null || !StageAllows(v.prefab)) continue;
             if (elapsed < v.unlockAfterSeconds) continue;
             acc += Mathf.Max(0f, v.weight);
             if (roll <= acc) return v.prefab;
@@ -251,17 +270,41 @@ public class EnemySpawner : MonoBehaviour
     {
         if (prefab == null || player == null) return false;
 
-        if(!TryFindSpawnPoint(out var spawnPosition,.62f))return false;
+        var body=prefab.GetComponent<CapsuleCollider>();
+        float radius=body!=null?body.radius*Mathf.Max(Mathf.Abs(prefab.transform.localScale.x),Mathf.Abs(prefab.transform.localScale.z))+.08f:.62f;
+        if(!TryFindSpawnPoint(out var spawnPosition,radius))return false;
 
         var spawned = (GameObject)Instantiate(prefab, spawnPosition, Quaternion.identity);
         var enemy = spawned.GetComponent<Enemy>();
         if (enemy != null && !enemy.isBoss)
         {
             enemy.contactDamage *= CurrentDamageMultiplier();
+            ApplyStageDifficulty(enemy);
         }
         return true;
     }
 
+
+    void SpawnConfiguredBoss()
+    {
+        var boss=Instantiate(bossPrefab,bossArrivalPosition,Quaternion.identity).GetComponent<Enemy>();
+        if(boss!=null)ApplyStageDifficulty(boss);
+    }
+
+    void ApplyStageDifficulty(Enemy enemy)
+    {
+        if(stageIndex!=0)return;
+        enemy.maxHealth=enemy.isBoss?600f:18f;
+        enemy.moveSpeed=enemy.isBoss?2.4f:2f;
+        enemy.contactDamage=enemy.isBoss?8f:4f;
+        enemy.RefreshConfiguredStatsAndColor();
+        var attacks=enemy.GetComponent<BossAttacks>();
+        if(attacks==null)return;
+        attacks.slamDamage=10f;attacks.chargeDamage=12f;
+        attacks.slamWindUp=1.5f;attacks.chargeWindUp=1.4f;
+        attacks.slamRecover=1.3f;attacks.chargeRecover=1.5f;
+        attacks.chargeSpeed=10f;attacks.restBetweenAttacks=4f;
+    }
 
     bool TryFindSpawnPoint(out Vector3 position,float radius)
     {
@@ -270,25 +313,16 @@ public class EnemySpawner : MonoBehaviour
         {
             Vector2 circle=Random.insideUnitCircle.normalized*spawnRadius;
             position=player.position+new Vector3(circle.x,0,circle.y);position.y=0;
-            var terrain=Terrain.activeTerrain;
-            if(terrain!=null)position.y=terrain.SampleHeight(position)+terrain.transform.position.y;
-            if(!IsSpawnBlocked(position,radius))return true;
+            // Keep the query near the player's elevation; never accept a remote cliff top.
+            position.y=player.position.y;
+            if(MapNavigation.SpawnPoint(position,radius,out var safe)){position=safe;return true;}
         }
         return false;
     }
 
     bool IsSpawnBlocked(Vector3 position,float radius=.62f)
     {
-        Collider[] overlaps = Physics.OverlapSphere(position + Vector3.up * 0.65f, radius,
-                                                     ~0, QueryTriggerInteraction.Ignore);
-        foreach (var col in overlaps)
-        {
-            if (col == null || col is TerrainCollider) continue;
-            if (player != null && (col.transform == player || col.transform.IsChildOf(player))) continue;
-            if (col.GetComponentInParent<Enemy>() != null) continue;
-            return true;
-        }
-        return false;
+        return !MapNavigation.SpawnPoint(position,radius,out var safe) || (safe-position).sqrMagnitude>.25f;
     }
 
 
