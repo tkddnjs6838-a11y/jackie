@@ -64,10 +64,13 @@ def jitter(verts, amount):
 
 
 def box(bm, center, size, mi, rot=(0, 0, 0)):
+    """Box with rounded edges: hard 90° corners read as stacked blocks, a small bevel catches the light."""
     verts = bmesh.ops.create_cube(bm, size=1.0)["verts"]
     place(bm, verts, center, rot, size)
     tag(verts, mi)
-    return verts
+    edges = list({e for v in verts for e in v.link_edges})
+    bmesh.ops.bevel(bm, geom=verts + edges, offset=min(size) * 0.18, segments=2, profile=0.5,
+                    affect="EDGES", clamp_overlap=True)
 
 
 def blob(bm, center, scale, mi, subdiv=2, amount=0.12):
@@ -88,12 +91,21 @@ def cyl(bm, r1, r2, h, segs, mi, base=(0, 0, 0), rot=(0, 0, 0)):
     return verts
 
 
-def finish(ob, bm, smooth=False):
+SHARP = math.radians(40)
+
+
+def finish(ob, bm, smooth=False, auto=False):
+    """smooth shades every face round. auto keeps only creases sharper than SHARP hard, so gentle
+    curves (hills, bevels, many-sided cones) shade round while real corners keep an edge.
+    Neither: flat faceted shading (rocks and crystals are low-poly on purpose)."""
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    if auto:
+        for e in bm.edges:
+            e.smooth = e.is_manifold and e.calc_face_angle(0) < SHARP
     bm.to_mesh(ob.data)
     bm.free()
     for p in ob.data.polygons:
-        p.use_smooth = smooth
+        p.use_smooth = smooth or auto
     return ob
 
 
@@ -124,7 +136,7 @@ def backdrop(name, mats, base, scatter, count, rmin=50, rmax=72):
         ai = int(a / math.tau * A) % A
         z = height(ri - 1, ai) * (1 - frac) + height(ri, ai) * frac
         scatter(bm, Vector((math.cos(a) * r, math.sin(a) * r, z - 0.5)))
-    return finish(ob, bm)
+    return finish(ob, bm, auto=True)
 
 
 # ---------- meadow ----------
@@ -154,7 +166,7 @@ def kit_meadow():
         v = [bm.verts.new(c) for c in [(x0, -hw, 0), (x0, hw, 0), (x0, hw, top), (x0, -hw, top), (x1, -hw, 0), (x1, hw, 0)]]
         for face in [(v[0], v[1], v[2], v[3]), (v[3], v[2], v[5], v[4]), (v[0], v[3], v[4]), (v[1], v[5], v[2]), (v[0], v[4], v[5], v[1])]:
             bm.faces.new(face).material_index = 0
-    out.append(finish(ob, bm))
+    out.append(finish(ob, bm, auto=True))
 
     # one triangle per blade (9 tris per tuft); the Unity material renders both faces ("Blade" in the name)
     ob = obj("Meadow_GrassTuft", [mat("GrassBlade", "#6cb446", 0.9)])
@@ -210,8 +222,10 @@ def kit_meadow():
 
     def pine(bm, p):
         h = R(4, 7.5)
-        box(bm, p + Vector((0, 0, 0.8)), (0.5, 0.5, 1.6), 3)
-        cyl(bm, R(1.4, 2.1), 0, h, 7, 2, p + Vector((0, 0, 1.0)))
+        cyl(bm, 0.28, 0.22, 1.6, 6, 3, p)
+        r = R(1.4, 2.1)
+        for start, width, height in ((0.0, 1.0, 0.55), (0.3, 0.78, 0.45), (0.58, 0.55, 0.42)):  # stacked tiers
+            cyl(bm, r * width, 0, h * height, 10, 2, p + Vector((0, 0, 1.0 + h * start)))
 
     out.append(backdrop("Meadow_Backdrop", [mat("Hill", "#5f9f45"), mat("Ridge", "#6e9b84"), mat("PineLeaf", "#3c7a3a"), mat("PineTrunk", "#6b4a2f")],
                         [-1, 5, 10, 16, 24, 28, 18], pine, 140))
@@ -351,7 +365,7 @@ def kit_plateau():
         else:
             v = cyl(bm, 0.48, 0.46, 1.4, 10, 0, (1.4, 0.3, 0.45), (math.pi / 2, 0, R(0, math.tau)))
             jitter(v, 0.04)
-        out.append(finish(ob, bm))
+        out.append(finish(ob, bm, auto=True))
 
     glow = mat("SpireCrystalGlow", "#c9a7ff", 0.2)
 

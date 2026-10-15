@@ -118,7 +118,7 @@ public static class MapBuilder
             splat = (x, z, h, s, w) => { w[0] = 1; w[1] = Mathf.InverseLerp(3.0f, 2.5f, h) * (1f - Mathf.InverseLerp(30f, 34f, Mathf.Max(Mathf.Abs(x), Mathf.Abs(z)))); },
             layers = new Func<float, float, Color>[] { Grass, Dirt },
             tile = new[] { 6f, 8f },
-            liquid = Hex("#3a8fc4"),
+            liquid = Hex("#36a8d6"),
             start = new Vector2(-18, -24), boss = new Vector2(18, 24),
             decorate = (root, dir, terrain) =>
             {
@@ -361,6 +361,7 @@ public static class MapBuilder
                 diffuseTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(texPath),
                 tileSize = new Vector2(def.tile[k], def.tile[k]),
             };
+            Matte(layer);
             layers[k] = SaveAsset(layer, $"{dir}/TL_{def.id}_Ground{k}.terrainlayer");
         }
         data.terrainLayers = layers;
@@ -405,10 +406,7 @@ public static class MapBuilder
         var sun = new GameObject("Sun").AddComponent<Light>();
         sun.transform.SetParent(root, false);
         sun.type = LightType.Directional;
-        sun.color = def.sun;
-        sun.intensity = 1.1f;
-        sun.shadows = LightShadows.Soft;
-        sun.transform.rotation = Quaternion.Euler(50f, -35f, 0f);
+        ApplySun(sun, def);
 
         if (def.liquid.a > 0f)
         {
@@ -418,8 +416,7 @@ public static class MapBuilder
             liquid.transform.SetParent(root, false);
             liquid.transform.position = new Vector3(0f, LiquidY, 0f);
             liquid.transform.localScale = new Vector3(Size / 10f, 1f, Size / 10f);
-            liquid.GetComponent<MeshRenderer>().sharedMaterial =
-                LoadOrCreateMaterial($"{dir}/M_{def.id}_Liquid.mat", "Universal Render Pipeline/Lit", def.liquid, def.liquidGlows);
+            liquid.GetComponent<MeshRenderer>().sharedMaterial = LiquidMaterial(def, dir);
         }
 
         if (def.liquid.a > 0f && !def.liquidGlows)
@@ -489,19 +486,87 @@ public static class MapBuilder
     {
         RenderSettings.fog = true;
         RenderSettings.fogMode = FogMode.Linear;
-        RenderSettings.fogStartDistance = 45f;
-        RenderSettings.fogEndDistance = 160f;
+        RenderSettings.fogStartDistance = 55f;
+        RenderSettings.fogEndDistance = 170f;
         RenderSettings.fogColor = def.fog;
-        var sky = LoadOrCreateMaterial($"{dir}/M_{def.id}_Sky.mat", "Skybox/Procedural", Color.white, false);
-        sky.SetColor("_SkyTint", def.skyTint);
-        sky.SetColor("_GroundColor", def.fog);
-        sky.SetFloat("_AtmosphereThickness", 0.8f);
-        sky.SetFloat("_Exposure", 1.2f);
+        var sky = LoadOrCreateMaterial($"{dir}/M_{def.id}_Sky.mat", "Game/StylizedSky", Color.white, false);
+        sky.SetColor("_ZenithColor", def.skyTint * 0.85f);
+        sky.SetColor("_HorizonColor", def.fog); // distant hills fade into the horizon, not into a band
+        sky.SetColor("_GroundColor", def.fog * 0.92f);
+        sky.SetColor("_CloudColor", Color.Lerp(def.fog, Color.white, 0.75f));
+        sky.SetColor("_CloudShade", Color.Lerp(def.fog, def.skyTint, 0.5f));
         RenderSettings.skybox = sky;
+        // the fill stays well below the sun so lit and shaded sides read apart; the sky tint keeps
+        // shadows cool instead of grey
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-        RenderSettings.ambientSkyColor = Color.Lerp(def.skyTint, Color.white, 0.4f);
-        RenderSettings.ambientEquatorColor = def.fog;
-        RenderSettings.ambientGroundColor = def.fog * 0.5f;
+        RenderSettings.ambientSkyColor = Color.Lerp(def.skyTint, Color.white, 0.15f) * 0.8f;
+        RenderSettings.ambientEquatorColor = def.fog * 0.65f;
+        RenderSettings.ambientGroundColor = def.fog * 0.3f;
+    }
+
+    static void ApplySun(Light sun, MapDef def)
+    {
+        // warm key light from the side rather than behind the camera, so shapes get a lit and a shaded face
+        sun.color = def.sun * new Color(1f, 0.95f, 0.86f);
+        sun.intensity = 1.7f;
+        sun.shadows = LightShadows.Soft;
+        sun.transform.rotation = Quaternion.Euler(45f, 120f, 0f);
+    }
+
+    static Material LiquidMaterial(MapDef def, string dir)
+    {
+        string path = $"{dir}/M_{def.id}_Liquid.mat";
+        if (def.liquidGlows) return LoadOrCreateMaterial(path, "Universal Render Pipeline/Lit", def.liquid, true);
+        var mat = LoadOrCreateMaterial(path, "Game/StylizedWater", def.liquid, false);
+        mat.SetColor("_DeepColor", def.liquid * 0.7f);
+        mat.SetColor("_SkyColor", Color.Lerp(def.skyTint, Color.white, 0.5f));
+        return mat;
+    }
+
+    // Re-applies lighting, sky, water, grass and ground colors to the saved maps without rebuilding them,
+    // so components added to the scenes after the build (navigation) are kept.
+    [MenuItem("Tools/Design/Refresh Map Look")]
+    public static void RefreshLook()
+    {
+        if (!LeaveDesignScenes()) return;
+        var previous = SceneManager.GetActiveScene();
+        foreach (var def in Defs())
+        {
+            string dir = $"{EnvRoot}/{def.id}_{def.name}";
+            for (int k = 0; k < def.layers.Length; k++)
+                SaveTexture($"{dir}/T_{def.id}_Ground{k}.png", def.layers[k]);
+            var scene = EditorSceneManager.OpenScene($"{SceneDir}/{def.id}_{def.name}.unity", OpenSceneMode.Additive);
+            SceneManager.SetActiveScene(scene);
+            ApplyAtmosphere(def, dir);
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                foreach (var light in root.GetComponentsInChildren<Light>(true))
+                    if (light.name == "Sun") ApplySun(light, def);
+                foreach (var r in root.GetComponentsInChildren<MeshRenderer>(true))
+                    if (r.name == "Zone_Liquid") r.sharedMaterial = LiquidMaterial(def, dir);
+            }
+            EditorSceneManager.SaveScene(scene);
+            EditorSceneManager.CloseScene(scene, true);
+        }
+        if (previous.IsValid()) SceneManager.SetActiveScene(previous);
+
+        foreach (var guid in AssetDatabase.FindAssets("Grass_ t:Mesh", new[] { EnvRoot }))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            if (!path.Contains("/Models/Generated/Grass_")) continue;
+            var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+            PaintBladeHeights(mesh);
+            EditorUtility.SetDirty(mesh);
+        }
+        foreach (var guid in AssetDatabase.FindAssets("t:TerrainLayer", new[] { EnvRoot }))
+        {
+            var layer = AssetDatabase.LoadAssetAtPath<TerrainLayer>(AssetDatabase.GUIDToAssetPath(guid));
+            Matte(layer);
+            EditorUtility.SetDirty(layer);
+        }
+        GrassMaterial(Model(EnvRoot + "/Map01_Meadow", "Meadow_GrassTuft"));
+        AssetDatabase.SaveAssets();
+        Debug.Log("[MapBuilder] refreshed lighting, water and grass on the saved maps");
     }
 
     // Imports a Blender-exported FBX from <dir>/Models and swaps its embedded materials for
@@ -581,10 +646,7 @@ public static class MapBuilder
     {
         var tuft = Model(EnvRoot + "/Map01_Meadow", "Meadow_GrassTuft");
         var tuftMesh = tuft.GetComponentInChildren<MeshFilter>().sharedMesh;
-        var tuftMat = tuft.GetComponentInChildren<MeshRenderer>().sharedMaterial;
-        tuftMat.SetFloat("_Cull", 0f); // blades are single triangles, so draw both faces
-        tuftMat.doubleSidedGI = true;
-        EditorUtility.SetDirty(tuftMat);
+        var tuftMat = GrassMaterial(tuft);
         string genDir = dir + "/Models/Generated";
         Directory.CreateDirectory(genDir);
         AssetDatabase.Refresh();
@@ -610,6 +672,7 @@ public static class MapBuilder
                 if (parts.Count == 0) continue;
                 var mesh = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
                 mesh.CombineMeshes(parts.ToArray(), true, true);
+                PaintBladeHeights(mesh);
                 mesh = SaveAsset(mesh, $"{genDir}/Grass_{cx}_{cz}.asset");
                 var chunk = new GameObject(mesh.name, typeof(MeshFilter), typeof(MeshRenderer));
                 chunk.transform.SetParent(grass, false);
@@ -620,6 +683,45 @@ public static class MapBuilder
                 mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 CullWhenSmall(chunk, 0.12f); // a 14m chunk drops out roughly 100m away, past the fog
             }
+    }
+
+    // A new TerrainLayer reads smoothness from the albedo alpha, which is opaque in the generated
+    // ground textures, so the ground rendered fully glossy (wet-plastic hills).
+    static void Matte(TerrainLayer layer)
+    {
+        layer.smoothnessSource = TerrainLayerSmoothnessSource.Constant;
+        layer.smoothness = 0f;
+    }
+
+    // blades are single triangles drawn from both sides; Game/StylizedGrass tints and sways them
+    static Material GrassMaterial(GameObject tuft)
+    {
+        var mat = tuft.GetComponentInChildren<MeshRenderer>().sharedMaterial;
+        mat.shader = Shader.Find("Game/StylizedGrass");
+        // root and tip stay close to the ground speckle colors so distant tufts blend instead of dotting the hills
+        mat.SetColor("_BaseColor", Hex("#4a8a36"));
+        mat.SetColor("_TipColor", Hex("#86bd57"));
+        mat.doubleSidedGI = true;
+        EditorUtility.SetDirty(mat);
+        return mat;
+    }
+
+    // Vertex color R: 0 at a blade's root, 1 at its tip. Every blade is one triangle with its own
+    // three vertices, and the tip is the highest of them.
+    static void PaintBladeHeights(Mesh mesh)
+    {
+        var verts = mesh.vertices;
+        var tris = mesh.triangles;
+        var colors = new Color[verts.Length];
+        for (int t = 0; t < tris.Length; t += 3)
+        {
+            int tip = tris[t];
+            for (int k = 1; k < 3; k++)
+                if (verts[tris[t + k]].y > verts[tip].y) tip = tris[t + k];
+            for (int k = 0; k < 3; k++)
+                colors[tris[t + k]] = tris[t + k] == tip ? Color.red : Color.black;
+        }
+        mesh.colors = colors;
     }
 
     static void CullWhenSmall(GameObject go, float screenHeight)
@@ -861,7 +963,7 @@ public static class MapBuilder
         return h < 0.07f ? c * 0.85f : h > 0.96f ? Color.Lerp(c, Color.white, 0.15f) : c;
     }
 
-    static Color Grass(float u, float v) => Speckled(u, v, "#4f9a3a", "#86c057", 0f);
+    static Color Grass(float u, float v) => Speckled(u, v, "#5f9f48", "#79b457", 0f);
     static Color Dirt(float u, float v) => Speckled(u, v, "#b8956a", "#d6b88a", 0.37f);
     static Color Shore(float u, float v) => Speckled(u, v, "#e7c9a3", "#f6e0c2", 0.21f);
     static Color Sand(float u, float v) => Speckled(u, v, "#d9b47e", "#efd09c", 0.13f);
@@ -940,6 +1042,8 @@ public static class MapBuilder
             mat = new Material(Shader.Find(shader));
             AssetDatabase.CreateAsset(mat, path);
         }
+        else if (mat.shader.name != shader)
+            mat.shader = Shader.Find(shader);
         if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
         if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", glow ? 0.3f : 0.75f);
         if (glow)

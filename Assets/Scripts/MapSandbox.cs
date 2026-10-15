@@ -30,14 +30,28 @@ public sealed class MapSandbox : MonoBehaviour
 
     IEnumerator Start()
     {
-        player=FindFirstObjectByType<PlayerWeapons>();flow=GetComponent<GameFlowManager>();
+        flow=GetComponent<GameFlowManager>();
+        flow.startButton.interactable=false;
+        // PlayerAutoAttack creates PlayerWeapons in Start; Start order is not guaranteed.
+        yield return null;
+        player=FindFirstObjectByType<PlayerWeapons>();
+        if(player==null){Debug.LogError("Cannot load first stage: PlayerWeapons was not initialized.");yield break;}
         spawner=FindFirstObjectByType<EnemySpawner>();
         foreach(var root in gameObject.scene.GetRootGameObjects())
             if(root.name=="MapTerrain" || root.name=="River" || root.name=="MapProps" || root.name=="Directional Light" || root.name=="WinZone")root.SetActive(false);
         CreateHud();
         flow.startButton.interactable=false;
         yield return ChangeMap(0);
-        flow.startButton.interactable=true;
+        flow.startButton.interactable=CurrentMap==0 && !Busy;
+    }
+    public bool CanInteractWithPortal
+    {
+        get
+        {
+            if(Busy || CurrentMap<0 || player==null || (!TestMode && !portalUnlocked))return false;
+            for(int i=0;i<5;i++)if((TestMode || i==Mathf.Min(CurrentMap+1,4)) && (player.transform.position-PortalPositions[i]).sqrMagnitude<2.3f*2.3f)return true;
+            return false;
+        }
     }
     public bool TravelTo(int index)
     {
@@ -77,9 +91,9 @@ public sealed class MapSandbox : MonoBehaviour
         bool spawnEnabled=spawner!=null && spawner.enabled;
         if(spawner!=null)spawner.enabled=false;
         Time.timeScale=0;
-        player.GetComponent<PlayerGunCombat>()?.CancelAction();
         try
         {
+            player.GetComponent<PlayerGunCombat>()?.CancelAction();
             string path="Assets/Design/Scenes/"+Maps[index]+".unity";
             if(!Application.CanStreamedLevelBeLoaded(path))throw new System.InvalidOperationException("Map missing from build scenes: "+path);
             // Unload the old environment before loading to also support re-entering the same map.
@@ -185,6 +199,7 @@ public sealed class MapSandbox : MonoBehaviour
         if(!TestMode)
         {
             var panelRect=panel.GetComponent<RectTransform>();panelRect.anchorMin=panelRect.anchorMax=new Vector2(0,1);panelRect.pivot=new Vector2(0,1);panelRect.anchoredPosition=new Vector2(20,-82);
+            if(MobileControls.Enabled){panelRect.localScale=Vector3.one*.8f;panelRect.anchoredPosition=new Vector2(64,-82);}
             status.fontSize=13;
             GameUiStyle.Apply(bg,GameUiStyle.Ink);GameUiStyle.Accent(panel.transform);
             var border=panel.AddComponent<Outline>();border.effectColor=new Color(.32f,.34f,.36f,.4f);border.effectDistance=new Vector2(1,-1);

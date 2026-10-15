@@ -10,6 +10,8 @@ public class WaxShardBurst : MonoBehaviour
     public float chipLifetime = 1.2f;
     public float launchSpeed = 2.1f;
 
+    void Start() { if (Application.isMobilePlatform) MobileWaxShards.Prepare(); }
+
     public void Burst(Color shellColor, bool lethal)
     {
         using (CostMarker.Auto())
@@ -24,6 +26,11 @@ public class WaxShardBurst : MonoBehaviour
             Vector3 center = bounds.center + Vector3.up * bounds.extents.y * 0.18f;
             int count = lethal ? chipsOnDeath : chipsPerHit;
             if (count <= 0) return;
+            if (Application.isMobilePlatform)
+            {
+                MobileWaxShards.Emit(source.sharedMaterial, shellColor, center, radius, bounds.min.y, lethal);
+                return;
+            }
             var outer = new Material(source.sharedMaterial);
             var inner = new Material(source.sharedMaterial);
             Configure(outer, shellColor);
@@ -59,7 +66,7 @@ public class WaxShardBurst : MonoBehaviour
         foreach (var key in new[] { "_BaseColor", "_Color", "baseColorFactor" })
             if (material.HasProperty(key)) material.SetColor(key,color);
     }
-    static Mesh MakeShell(float size, float radius)
+    internal static Mesh MakeShell(float size, float radius)
     {
         const int sides = 5;
         var vertices = new Vector3[(sides+1)*2];

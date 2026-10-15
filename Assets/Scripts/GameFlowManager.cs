@@ -70,6 +70,8 @@ public class GameFlowManager : MonoBehaviour
     void OnStartClicked()
     {
         if (started || finished) return;
+        var maps=GetComponent<MapSandbox>();
+        if(maps!=null && (maps.Busy || maps.CurrentMap<0))return;
         started = true;
         if (startPanel != null) startPanel.SetActive(false);
         Time.timeScale = 1f;

@@ -8,7 +8,7 @@ PlayerSettings:
   AndroidProfiler: 0
   AndroidFilterTouchesWhenObscured: 0
   AndroidEnableSustainedPerformanceMode: 0
-  defaultScreenOrientation: 4
+  defaultScreenOrientation: 3
   targetDevice: 2
   useOnDemandResources: 0
   accelerometerFrequency: 60
@@ -170,7 +170,7 @@ PlayerSettings:
   applicationIdentifier:
     Android: com.UnityTechnologies.com.unity.template.urpblank
     Standalone: com.Unity-Technologies.com.unity.template.urp-blank
-    iPhone: com.Unity-Technologies.com.unity.template.urp-blank
+    iPhone: com.hsw.wakuballsmash
   buildNumber:
     Standalone: 0
     VisionOS: 0
@@ -253,7 +253,7 @@ PlayerSettings:
   iOSManualSigningProvisioningProfileType: 0
   tvOSManualSigningProvisioningProfileType: 0
   VisionOSManualSigningProvisioningProfileType: 0
-  appleEnableAutomaticSigning: 0
+  appleEnableAutomaticSigning: 1
   iOSRequireARKit: 0
   iOSAutomaticallyDetectAndAddCapabilities: 1
   appleEnableProMotion: 0
@@ -531,6 +531,9 @@ PlayerSettings:
     m_StaticBatching: 0
     m_DynamicBatching: 0
   - m_BuildTarget: Standalone
+    m_StaticBatching: 1
+    m_DynamicBatching: 0
+  - m_BuildTarget: iPhone
     m_StaticBatching: 1
     m_DynamicBatching: 0
   m_BuildTargetShaderSettings: []
@@ -859,7 +862,7 @@ PlayerSettings:
   editorAssembliesCompatibilityLevel: 1
   m_RenderingPath: 1
   m_MobileRenderingPath: 1
-  metroPackageName: Nc_ai_2026_08_13
+  metroPackageName: jackie
   metroPackageVersion: 
   metroCertificatePath: 
   metroCertificatePassword: 
@@ -940,7 +943,7 @@ PlayerSettings:
   cloudProjectId: ad538606-7870-4288-95a9-e6c2e540056e
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
-  projectName: Nc_ai_2026_08_13
+  projectName: jackie
   organizationId: tkddnjs6838
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0

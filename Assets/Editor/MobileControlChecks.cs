@@ -16,7 +16,7 @@ public static class MobileControlChecks
         const string request="output/gun-effects/mobile-check.txt";
         if(EditorApplication.isCompiling || !File.Exists(request))return;
         EditorPrefs.SetBool("Wakuball.MobilePreview",true);
-        if(!EditorApplication.isPlaying)return;
+        if(!EditorApplication.isPlaying){if(!EditorApplication.isPlayingOrWillChangePlaymode)EditorApplication.isPlaying=true;return;}
         File.Delete(request);Object.FindFirstObjectByType<GameFlowManager>().StartCoroutine(Run());
     }
     static void Check(bool pass,string description){File.AppendAllText(Report,(pass?"PASS ":"FAIL ")+description+"\n");if(!pass)throw new Exception(description);}
@@ -31,7 +31,7 @@ public static class MobileControlChecks
         File.AppendAllText(Report,"Run started; scale="+Time.timeScale+"\n");yield return null;yield return null;
         var player=Object.FindFirstObjectByType<PlayerController>();var weapons=player.GetComponent<PlayerWeapons>();var gun=player.GetComponent<PlayerGunCombat>();
         var spawner=Object.FindFirstObjectByType<EnemySpawner>();spawner.enabled=false;
-        TouchControl Find(string name)=>Array.Find(Object.FindObjectsByType<TouchControl>(FindObjectsSortMode.None),x=>x.name==name);
+        TouchControl Find(string name)=>Array.Find(Object.FindObjectsByType<TouchControl>(FindObjectsInactive.Include,FindObjectsSortMode.None),x=>x.name==name);
         var move=Find("Move");var attack=Find("Attack");var look=Find("Look");
         Check(move!=null && attack!=null && look!=null,"Touch controls visible during run");
         var a=Pointer(1,move);a.position+=Vector2.up*65;move.OnPointerDown(a);
@@ -58,6 +58,17 @@ public static class MobileControlChecks
         attack.OnPointerDown(b);Time.timeScale=0;yield return null;yield return null;
         Check(!MobileControls.Firing && MobileControls.Move==Vector2.zero,"Pause cancels held touches");Time.timeScale=1;yield return null;yield return null;
         yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot("output/gun-effects/mobile-ui.png");yield return null;
+        var shardMaterial=new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        MobileWaxShards.Prepare();
+        var pool=Object.FindFirstObjectByType<MobileWaxShards>();
+        for(int i=0;i<50;i++)MobileWaxShards.Emit(shardMaterial,Color.green,player.transform.position,1,player.transform.position.y,true);
+        Check(pool.transform.childCount==32,"Mobile shard pool stays at 32 objects under burst load");
+        int active=0;foreach(Transform piece in pool.transform)if(piece.gameObject.activeSelf)active++;
+        Check(active<=12,"Simultaneous kills emit at most 12 mobile shards per frame");
+        yield return new WaitForSeconds(.8f);
+        active=0;foreach(Transform piece in pool.transform)if(piece.gameObject.activeSelf)active++;
+        Check(active==0,"Expired mobile shards return to pool");
+        Object.Destroy(shardMaterial);Object.Destroy(pool.gameObject);
         flow.CompleteStages();yield return null;yield return new WaitForEndOfFrame();ScreenCapture.CaptureScreenshot("output/gun-effects/result-ui.png");yield return null;
         Check(Object.FindObjectsByType<TouchControl>(FindObjectsSortMode.None).Length==0,"Result screen hides touch controls");
         File.AppendAllText(Report,"COMPLETE\n");

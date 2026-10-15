@@ -11,14 +11,20 @@ public static class GameBuild
     static GameBuild(){EditorApplication.update+=Poll;}
     static void Poll()
     {
-        const string request="output/build-game.request";
+        string request=File.Exists("output/build-ios.request")?"output/build-ios.request":"output/build-game.request";
         if(EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling || !File.Exists(request))return;
-        File.Delete(request);BuildMac();
+        File.Delete(request);if(request.Contains("ios"))BuildIOS();else BuildMac();
     }
     [MenuItem("Tools/Build/Mac Game")]
     public static void BuildMac()=>Build(BuildTarget.StandaloneOSX,"output/builds/WakuballSmash.app");
     [MenuItem("Tools/Build/iOS Xcode Project")]
-    public static void BuildIOS()=>Build(BuildTarget.iOS,"output/builds/iOS");
+    public static void BuildIOS()
+    {
+        PlayerSettings.SetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.iOS,"com.hsw.wakuballsmash");
+        PlayerSettings.iOS.appleEnableAutomaticSigning=true;
+        PlayerSettings.defaultInterfaceOrientation=UIOrientation.LandscapeLeft;
+        Build(BuildTarget.iOS,"output/builds/iOS");
+    }
     static void Build(BuildTarget target,string destination)
     {
         Directory.CreateDirectory("output/builds");

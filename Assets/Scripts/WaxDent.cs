@@ -19,6 +19,8 @@ public class WaxDent : MonoBehaviour
 
     public bool Punch(Vector3 contact,float damage,bool lethal,float intensity=1f)
     {
+        // Mobile keeps impact tint, cracks and the death squash without CPU skin baking.
+        if (Application.isMobilePlatform) return false;
         bool initialized = false;
         if(skin==null || mesh==null || baked==null || surface==null)
         {

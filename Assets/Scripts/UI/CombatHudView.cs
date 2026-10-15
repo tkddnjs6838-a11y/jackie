@@ -38,7 +38,7 @@ public sealed class CombatHudView : MonoBehaviour
         var kills=Panel("Kills",new Vector2(0,1),new Vector2(100,-42),new Vector2(160,48));
         Icon(kills,"Skull",CombatHudIcon.Kind.Skull,new Vector2(-54,0),new Vector2(26,28),new Color(.77f,.79f,.78f));
         killsText=Label(kills,"Count","처치 0",23,new Vector2(18,0),new Vector2(106,38));
-        var wp=Panel("Weapon",new Vector2(1,0),new Vector2(-192,MobileControls.Enabled?420:84),new Vector2(344,128));
+        var wp=Panel("Weapon",new Vector2(1,0),new Vector2(-192,MobileControls.Enabled?442:84),new Vector2(344,128));
         weaponIcon=Box(wp,"WeaponPortrait",new Vector2(-95,12),new Vector2(138,72),Color.white);
         weaponIcon.type=Image.Type.Simple;weaponIcon.preserveAspect=true;
         var portraitNames=new[]{"Sword","Axe","Shotgun","MachineGun","LaserGun"};
@@ -62,7 +62,8 @@ public sealed class CombatHudView : MonoBehaviour
         var spawner=FindFirstObjectByType<EnemySpawner>();if(spawner!=null && spawner.killCountText!=null)spawner.killCountText.gameObject.SetActive(false);
         Refresh();
     }
-    void LateUpdate()=>Refresh();
+    float nextRefresh;
+    void LateUpdate(){if(Time.unscaledTime<nextRefresh)return;nextRefresh=Time.unscaledTime+.1f;Refresh();}
     public void Refresh()
     {
         if(root==null)return;
@@ -92,6 +93,7 @@ public sealed class CombatHudView : MonoBehaviour
     RectTransform Panel(string name,Vector2 anchor,Vector2 at,Vector2 size)
     {
         var edge=Box(root.transform,name,at,size,Border);var r=edge.rectTransform;r.anchorMin=r.anchorMax=anchor;
+        if(MobileControls.Enabled){r.localScale=Vector3.one*.82f;if(anchor.x==1)r.anchoredPosition+=Vector2.left*36;else if(anchor.x==0)r.anchoredPosition+=Vector2.right*36;}
         GameUiStyle.Apply(edge,Border);
         var inner=Box(r,"Inner",Vector2.zero,size-new Vector2(2,2),Dark);GameUiStyle.Apply(inner,GameUiStyle.Ink);GameUiStyle.Accent(r);return r;
     }
@@ -109,7 +111,7 @@ public sealed class CombatHudView : MonoBehaviour
     Text Label(Transform parent,string name,string text,int fontSize,Vector2 at,Vector2 size)
     {
         var go=new GameObject(name,typeof(RectTransform),typeof(Text));go.transform.SetParent(parent,false);var r=go.GetComponent<RectTransform>();r.anchorMin=r.anchorMax=new Vector2(.5f,.5f);r.anchoredPosition=at;r.sizeDelta=size;
-        var t=go.GetComponent<Text>();t.font=font;t.fontSize=fontSize;t.fontStyle=fontSize>=21?FontStyle.Bold:FontStyle.Normal;t.verticalOverflow=VerticalWrapMode.Overflow;t.horizontalOverflow=HorizontalWrapMode.Overflow;t.color=new Color(.88f,.89f,.87f);t.alignment=TextAnchor.MiddleCenter;t.text=text;t.raycastTarget=false;return t;
+        var t=go.GetComponent<Text>();t.font=font;t.fontSize=fontSize;t.fontStyle=FontStyle.Normal;t.verticalOverflow=VerticalWrapMode.Overflow;t.horizontalOverflow=HorizontalWrapMode.Overflow;t.color=new Color(.88f,.89f,.87f);t.alignment=TextAnchor.MiddleCenter;t.text=text;t.raycastTarget=false;return t;
     }
     CombatHudIcon Icon(Transform parent,string name,CombatHudIcon.Kind kind,Vector2 at,Vector2 size,Color color)
     {

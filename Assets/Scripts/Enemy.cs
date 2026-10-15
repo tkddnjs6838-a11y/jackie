@@ -173,9 +173,23 @@ public class Enemy : MonoBehaviour
         SetTint(baseColor);
     }
 
+    // Soft candy colors that sit together on every map; fully random hues read as clashing toy plastic.
+    static readonly Color[] RandomPalette =
+    {
+        new Color(1f, 0.54f, 0.48f),   // coral
+        new Color(1f, 0.72f, 0.42f),   // apricot
+        new Color(1f, 0.85f, 0.4f),    // butter
+        new Color(0.5f, 0.85f, 0.69f), // mint
+        new Color(0.49f, 0.77f, 0.95f),// sky
+        new Color(0.7f, 0.62f, 0.95f), // lavender
+        new Color(0.96f, 0.6f, 0.8f),  // pink
+    };
+
     void ApplyRandomColor()
     {
-        baseColor = Random.ColorHSV(0f, 1f, 0.6f, 1f, 0.7f, 1f);
+        Color.RGBToHSV(RandomPalette[Random.Range(0, RandomPalette.Length)], out float hue, out float saturation, out float value);
+        // slight per-monster drift so a crowd of the same color isn't identical
+        baseColor = Color.HSVToRGB(Mathf.Repeat(hue + Random.Range(-0.015f, 0.015f), 1f), saturation * Random.Range(0.9f, 1.05f), value * Random.Range(0.93f, 1f));
         hasBaseColor = true;
         SetTint(baseColor);
     }
@@ -414,7 +428,7 @@ public class Enemy : MonoBehaviour
         foreach (var animator in GetComponentsInChildren<Animator>()) animator.enabled = false;
         var dent = GetComponent<WaxDent>();
         if (dent != null) dent.FreezeSurface();
-        yield return new WaitForSeconds(corpseLifetime);
+        yield return new WaitForSeconds(Application.isMobilePlatform ? Mathf.Min(corpseLifetime, .35f) : corpseLifetime);
         Destroy(gameObject);
     }
 

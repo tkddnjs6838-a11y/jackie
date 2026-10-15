@@ -27,12 +27,26 @@ public sealed class MobileControls : MonoBehaviour
     bool fire,dash,interact;
     GameObject root;RectTransform safe;
     PlayerWeapons weapons;
+    GameObject portalButton;
+    MapSandbox map;
+    float frameSeconds,worstFrame;int frameCount;
     Text dashLabel;TouchControl[] controls;
+    static Sprite disc;
+    static Sprite Disc
+    {
+        get
+        {
+            if(disc!=null)return disc;
+            var t=new Texture2D(64,64,TextureFormat.RGBA32,false);var pixels=new Color32[4096];
+            for(int y=0;y<64;y++)for(int x=0;x<64;x++)pixels[y*64+x]=new Color(1,1,1,Mathf.Clamp01(31.5f-Vector2.Distance(new Vector2(x,y),new Vector2(31.5f,31.5f))));
+            t.SetPixels32(pixels);t.Apply();disc=Sprite.Create(t,new Rect(0,0,64,64),new Vector2(.5f,.5f));return disc;
+        }
+    }
     Rect lastSafe;int lastWidth,lastHeight;
-    void Awake(){Instance=this;if(Application.isMobilePlatform)Screen.orientation=ScreenOrientation.LandscapeLeft;}
+    void Awake(){Instance=this;if(Application.isMobilePlatform)Screen.orientation=ScreenOrientation.LandscapeLeft; if(Application.isMobilePlatform)Application.targetFrameRate=60;}
     void Start()
     {
-        weapons=GetComponent<PlayerWeapons>();
+        weapons=GetComponent<PlayerWeapons>();map=FindFirstObjectByType<MapSandbox>();
         root=new GameObject("MobileControls",typeof(RectTransform),typeof(Canvas),typeof(CanvasScaler),typeof(GraphicRaycaster));
         var canvas=root.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=60;
         var scaler=root.GetComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1280,720);scaler.matchWidthOrHeight=1;
@@ -41,17 +55,17 @@ public sealed class MobileControls : MonoBehaviour
         var lr=lookPad.GetComponent<RectTransform>();lr.anchorMin=new Vector2(.4f,0);lr.anchorMax=Vector2.one;lr.offsetMin=lr.offsetMax=Vector2.zero;
         lookPad.GetComponent<Image>().color=Color.clear;
         lookPad.OnDragValue=d=>look+=d*180f/Mathf.Max(1,Screen.height);
-        var stick=Control("Move",Vector2.zero,new Vector2(145,145),new Vector2(180,180),"이동");
+        var stick=Control("Move",Vector2.zero,new Vector2(145,145),new Vector2(164,164),"");
         var knob=new GameObject("StickKnob",typeof(RectTransform),typeof(Image));knob.transform.SetParent(stick.transform,false);
         var knobRect=knob.GetComponent<RectTransform>();knobRect.sizeDelta=new Vector2(60,60);
-        var knobImage=knob.GetComponent<Image>();GameUiStyle.Apply(knobImage,new Color(.7f,.75f,.75f,.3f));knobImage.raycastTarget=false;
+        var knobImage=knob.GetComponent<Image>();knobImage.sprite=Disc;knobImage.color=new Color(.85f,.90f,.92f,.45f);knobImage.raycastTarget=false;
         stick.Stick=true;stick.OnStick=v=>{move=v;if(knobRect!=null)knobRect.anchoredPosition=v*60;};
-        var attack=Control("Attack",new Vector2(1,0),new Vector2(-135,140),new Vector2(128,128),"공격");
+        var attack=Control("Attack",new Vector2(1,0),new Vector2(-120,145),new Vector2(126,126),"공격");
         attack.OnHeld=v=>fire=v;attack.OnDragValue=d=>look+=d*180f/Mathf.Max(1,Screen.height);
-        var dodge=Control("Dash",new Vector2(1,0),new Vector2(-295,100),new Vector2(100,82),"대시");dodge.OnPress=()=>dash=true;dashLabel=dodge.GetComponentInChildren<Text>();
-        Control("Reload",new Vector2(1,0),new Vector2(-130,285),new Vector2(110,65),"재장전").OnPress=()=>GetComponent<PlayerGunCombat>()?.BeginReload();
-        Control("Switch",new Vector2(1,0),new Vector2(-275,225),new Vector2(110,65),"무기 변경").OnPress=CycleWeapon;
-        Control("Portal",new Vector2(.5f,0),new Vector2(0,70),new Vector2(130,58),"포탈 이동").OnPress=()=>interact=true;
+        var dodge=Control("Dash",new Vector2(1,0),new Vector2(-268,105),new Vector2(78,78),"대시");dodge.OnPress=()=>dash=true;dashLabel=dodge.GetComponentInChildren<Text>();
+        Control("Reload",new Vector2(1,0),new Vector2(-113,302),new Vector2(70,70),"재장전").OnPress=()=>GetComponent<PlayerGunCombat>()?.BeginReload();
+        Control("Switch",new Vector2(1,0),new Vector2(-246,245),new Vector2(70,70),"교체").OnPress=CycleWeapon;
+        var portal=Control("Portal",new Vector2(.5f,0),new Vector2(0,65),new Vector2(110,46),"포탈 이동");portal.OnPress=()=>interact=true;portalButton=portal.gameObject;
         controls=root.GetComponentsInChildren<TouchControl>(true);
         ApplySafeArea();root.SetActive(false);
     }
@@ -59,10 +73,19 @@ public sealed class MobileControls : MonoBehaviour
     {
         var go=new GameObject(name,typeof(RectTransform),typeof(Image),typeof(TouchControl));go.transform.SetParent(safe,false);
         var r=go.GetComponent<RectTransform>();r.anchorMin=r.anchorMax=anchor;r.anchoredPosition=position;r.sizeDelta=size;
-        GameUiStyle.Apply(go.GetComponent<Image>(),new Color(.10f,.12f,.14f,.60f));
+        var background=go.GetComponent<Image>();
+        GameUiStyle.Apply(background,new Color(.055f,.07f,.085f,.36f));
+        if(name!="Look" && name!="Portal") {background.sprite=Disc;background.type=Image.Type.Simple;}
+        if(name!="Look" && name!="Move" && name!="Portal")
+        {
+            var icon=new GameObject("Glyph",typeof(RectTransform),typeof(CanvasRenderer),typeof(TouchGlyph));icon.transform.SetParent(go.transform,false);
+            icon.GetComponent<RectTransform>().sizeDelta=size*.46f;
+            var glyph=icon.GetComponent<TouchGlyph>();glyph.Symbol=name;glyph.color=new Color(.90f,.93f,.94f,.9f);glyph.raycastTarget=false;
+        }
         var textGo=new GameObject("Label",typeof(RectTransform),typeof(Text));textGo.transform.SetParent(go.transform,false);
         var tr=textGo.GetComponent<RectTransform>();tr.anchorMin=Vector2.zero;tr.anchorMax=Vector2.one;tr.sizeDelta=Vector2.zero;
-        var text=textGo.GetComponent<Text>();text.font=Resources.Load<Font>("UI/AugmentKorean");text.fontSize=20;text.text=label;text.alignment=TextAnchor.MiddleCenter;text.color=new Color(.88f,.90f,.89f);text.raycastTarget=false;
+        if(name!="Portal" && name!="Look" && name!="Move"){tr.anchorMin=tr.anchorMax=new Vector2(.5f,0);tr.anchoredPosition=new Vector2(0,-17);tr.sizeDelta=new Vector2(110,30);}
+        var text=textGo.GetComponent<Text>();text.font=Resources.Load<Font>("UI/AugmentKorean");text.fontSize=21;text.verticalOverflow=VerticalWrapMode.Overflow;text.horizontalOverflow=HorizontalWrapMode.Overflow;text.text=label;text.alignment=TextAnchor.MiddleCenter;text.color=new Color(.88f,.90f,.89f);text.raycastTarget=false;
         return go.GetComponent<TouchControl>();
     }
     void Update()
@@ -71,6 +94,12 @@ public sealed class MobileControls : MonoBehaviour
         bool active=Enabled && Time.timeScale>0 && RunStats.Instance!=null && RunStats.Instance.Running;
         if(!active)Clear();root.SetActive(active);
         if(!active)return;
+        portalButton.SetActive(map!=null && map.CanInteractWithPortal);
+        if(Application.isMobilePlatform)
+        {
+            frameSeconds+=Time.unscaledDeltaTime;frameCount++;worstFrame=Mathf.Max(worstFrame,Time.unscaledDeltaTime);
+            if(frameSeconds>=10){Debug.Log($"[MobileFrames] avg={frameCount/frameSeconds:F1} fps worst={worstFrame*1000:F1}ms");frameSeconds=worstFrame=0;frameCount=0;}
+        }
         if(Screen.safeArea!=lastSafe || Screen.width!=lastWidth || Screen.height!=lastHeight)ApplySafeArea();
         var playerDash=GetComponent<PlayerDash>();dashLabel.text=playerDash.IsReady?"대시":Mathf.CeilToInt((1-playerDash.CooldownFraction)*playerDash.cooldown).ToString();
     }
