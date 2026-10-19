@@ -12,7 +12,10 @@ public sealed class MobileControls : MonoBehaviour
         get
         {
 #if UNITY_EDITOR
-            return UnityEditor.EditorPrefs.GetBool("Wakuball.MobilePreview",false);
+            // A saved touch preview must never override desktop keyboard/mouse input.
+            var target = UnityEditor.EditorUserBuildSettings.activeBuildTarget;
+            bool mobileTarget = target == UnityEditor.BuildTarget.Android || target == UnityEditor.BuildTarget.iOS;
+            return mobileTarget && UnityEditor.EditorPrefs.GetBool("Wakuball.MobilePreview",false);
 #else
             return Application.isMobilePlatform;
 #endif
