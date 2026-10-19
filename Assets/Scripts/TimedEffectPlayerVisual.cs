@@ -13,18 +13,6 @@ public sealed class TimedEffectPlayerVisual : MonoBehaviour
     int version = -1;
     float elapsed;
     bool showing;
-    float augmentRemaining;
-    Color augmentColor;
-    string augmentName;
-    public void ShowAugment(CharacterGrowth.Kind kind)
-    {
-        augmentRemaining = 3f;
-        augmentColor = CharacterGrowth.ColorFor(kind);
-        augmentName = CharacterGrowth.TitleFor(kind);
-        elapsed = 0;
-    }
-
-
     void Start()
     {
         effects = GetComponent<PowerUpEffects>();
@@ -85,23 +73,21 @@ public sealed class TimedEffectPlayerVisual : MonoBehaviour
     {
         if (label == null) return;
         bool timedActive = effects != null && effects.Active;
-        if ((!timedActive && augmentRemaining <= 0) || (RunStats.Instance != null && !RunStats.Instance.Running))
+        if (!timedActive || (RunStats.Instance != null && !RunStats.Instance.Running))
         {
             Clear();
             return;
         }
         if (!showing) Begin();
-        if (augmentRemaining <= 0 && timedActive && version != effects.ActivationVersion)
+        if (version != effects.ActivationVersion)
         {
             version = effects.ActivationVersion;
             elapsed = 0;
             label.text = PowerUpEffects.DisplayName(effects.ActiveKind);
         }
         elapsed += Time.deltaTime;
-        bool augmentActive = augmentRemaining > 0;
-        Color tint = augmentActive ? augmentColor : PowerUpEffects.ColorOf(effects.ActiveKind);
-        label.text = augmentActive ? augmentName : PowerUpEffects.DisplayName(effects.ActiveKind);
-        if (augmentActive) { augmentRemaining = Mathf.Max(0, augmentRemaining - Time.deltaTime); version = -1; }
+        Color tint = PowerUpEffects.ColorOf(effects.ActiveKind);
+        label.text = PowerUpEffects.DisplayName(effects.ActiveKind);
         // A readable acquisition flash, followed by slower paired glints.
         float beat = Mathf.Repeat(Mathf.Max(0, elapsed - .4f), 1.25f);
         float first = Mathf.SmoothStep(0, 1, Mathf.Clamp01(1 - Mathf.Abs(beat - .2f) / .25f));
@@ -135,6 +121,6 @@ public sealed class TimedEffectPlayerVisual : MonoBehaviour
         showing = false;
         version = -1;
     }
-    void OnDisable() { augmentRemaining = 0; Clear(); }
+    void OnDisable() { Clear(); }
     void OnDestroy() { Clear(); if (label != null) Destroy(label.gameObject); }
 }

@@ -79,9 +79,6 @@ public sealed class CharacterGrowth : MonoBehaviour
             case Kind.SecondWind:
                 var dash=GetComponent<PlayerDash>();dash.cooldown=Mathf.Max(.5f,dash.cooldown-.4f);break;
         }
-        var visual = GetComponent<TimedEffectPlayerVisual>();
-        if (visual == null) visual = gameObject.AddComponent<TimedEffectPlayerVisual>();
-        visual.ShowAugment(kind);
         GameAudio.Play(GameAudio.Sfx.UpgradePick);
         DamageNumber.Create(transform.position+Vector3.up*1.5f,Name(kind)+" "+Level(kind)+"/"+Limit(kind),ColorFor(kind));
         return true;
