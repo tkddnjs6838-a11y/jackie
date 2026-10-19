@@ -40,7 +40,12 @@ public class BossAttacks : MonoBehaviour
     public Color windUpColor = new Color(1f, 0.35f, 0.25f, 1f);
     public Color strikeColor = new Color(1f, 0.85f, 0.4f, 1f);
 
+    public int stageVariant;
+    [HideInInspector] public int bounceLandings;
     private Enemy enemy;
+    private bool crystalGuardNext;
+    private bool lavaPourNext;
+    private BossAttackMotion motion;
     private Transform player;
     private PlayerHealth playerHealth;
 
@@ -52,13 +57,19 @@ public class BossAttacks : MonoBehaviour
     void OnEnable()
     {
         enemy = GetComponent<Enemy>();
+        motion = GetComponent<BossAttackMotion>();
         StartCoroutine(Brain());
     }
 
     void OnDisable()
     {
         StopAllCoroutines();
+        var crystals=GetComponent<CrystalBossCrystals>();
+        if(crystals!=null)crystals.Cancel();
+        var lava=GetComponent<CraterBossAttacks>();
+        if(lava!=null)lava.Cancel();
         if (enemy != null) enemy.externalMovement = false;
+        if(motion!=null)motion.Release();
     }
 
     IEnumerator Brain()
@@ -70,7 +81,41 @@ public class BossAttacks : MonoBehaviour
             if (!Ready()) continue;
 
             float gap = SurfaceGap();
-            if (gap >= chargeMinRange) yield return Charge();
+            if(stageVariant==4)
+            {
+                var lava=GetComponent<CraterBossAttacks>();
+                if(lava!=null && lava.isActiveAndEnabled)
+                {
+                    lastPattern=lavaPourNext?"lava flow":"lava throw";
+                    if(lavaPourNext)yield return lava.Pour();else yield return lava.Throw();
+                    lavaPourNext=!lavaPourNext;
+                }
+                else {yield return Charge();if(Ready())yield return Slam();}
+            }
+            else if(stageVariant==3)
+            {
+                var crystals=GetComponent<CrystalBossCrystals>();
+                if(crystals!=null && crystals.isActiveAndEnabled)
+                {
+                    lastPattern=crystalGuardNext?"crystal guard":"crystal volley";
+                    if(crystalGuardNext)yield return crystals.Defend();
+                    else yield return crystals.Volley();
+                    crystalGuardNext=!crystalGuardNext;
+                    if(Ready() && SurfaceGap()<=slamRange)yield return Slam();
+                }
+                else
+                {
+                    yield return Slam();
+                    if(Ready())yield return Slam();
+                }
+            }
+            else if(stageVariant==0) yield return Slam();
+            else if(stageVariant==1) yield return Charge();
+            else if(stageVariant==2)
+            {
+                yield return BounceCombo();
+            }
+            else if (gap >= chargeMinRange) yield return Charge();
             else yield return Slam();
         }
     }
@@ -99,8 +144,79 @@ public class BossAttacks : MonoBehaviour
     {
         Vector3 p = transform.position;
         var terrain = Terrain.activeTerrain;
-        if (terrain != null) p.y = terrain.SampleHeight(p) + terrain.transform.position.y;
+        if (terrain != null && MapNavigation.Current==null) p.y = terrain.SampleHeight(p) + terrain.transform.position.y;
         return p + Vector3.up * 0.08f;
+    }
+
+    // Wax lake: lock each landing spot before take-off, then leave a long punish window.
+    IEnumerator BounceCombo()
+    {
+        lastPattern = "wax bounce";
+        enemy.externalMovement = true;
+        for (int hop = 0; hop < 3; hop++)
+        {
+            if (!Ready()) { Release(); yield break; }
+            Vector3 start = transform.position;
+            Vector3 offset = player.position - start; offset.y = 0;
+            Vector3 target = start + Vector3.ClampMagnitude(offset, 7f);
+            if (MapNavigation.Current != null)
+            {
+                Vector3 from, to;
+                UnityEngine.AI.NavMeshHit edge;
+                if (!MapNavigation.Sample(start, 2f, out from) || !MapNavigation.Sample(target, 2f, out to)) target = start;
+                else
+                {
+                    if (UnityEngine.AI.NavMesh.Raycast(from, to, out edge, UnityEngine.AI.NavMesh.AllAreas))
+                        to = Vector3.MoveTowards(edge.position, from, enemy.BodyRadiusWorld + .3f);
+                    target = MapNavigation.Clear(to, enemy.BodyRadiusWorld) ? to : start;
+                }
+            }
+            else if (Terrain.activeTerrain != null)
+                target.y = Terrain.activeTerrain.SampleHeight(target) + Terrain.activeTerrain.transform.position.y;
+            Vector3 facing = target - start; facing.y = 0;
+            if (facing.sqrMagnitude > .01f) transform.forward = facing.normalized;
+            float radius = Mathf.Min(slamRadius, 4f);
+            float tell = hop == 0 ? .85f : .6f;
+            float t = 0, nextTell = 0;
+            while (t < tell)
+            {
+                if (!Ready()) { Release(); yield break; }
+                if (Time.timeScale <= 0) { yield return null; continue; }
+                t += Time.deltaTime;
+                if (motion != null) motion.Pose("HopTell", t / tell);
+                if (t >= nextTell)
+                {
+                    SwordSweep.Spawn(target + Vector3.up * .1f, transform.forward, radius, 360f, radius * .9f, windUpColor, .24f, 1f);
+                    nextTell = t + .18f;
+                }
+                yield return null;
+            }
+            t = 0;
+            while (t < .75f)
+            {
+                if (!Ready()) { Release(); yield break; }
+                if (Time.timeScale <= 0) { yield return null; continue; }
+                t = Mathf.Min(.75f, t + Time.deltaTime);
+                Vector3 desired = Vector3.Lerp(start, target, t / .75f);
+                enemy.MoveAvoidingObstacles(desired - transform.position);
+                if (motion != null) motion.Pose("HopAir", t / .75f);
+                yield return null;
+            }
+            if (!Ready()) { Release(); yield break; }
+            while (Time.timeScale <= 0) yield return null;
+            if (!Ready()) { Release(); yield break; }
+            if (motion != null) { motion.Pose("HopRecover", 0); motion.MarkImpact(); }
+            bounceLandings++;
+            GameAudio.Play(GameAudio.Sfx.AxeHit);
+            var ground = GroundPoint();
+            SwordSweep.Spawn(ground, transform.forward, radius, 360f, radius * .3f, strikeColor, .35f, 1.3f);
+            HitImpact.Spawn(ground + Vector3.up * .15f, Vector3.up, 1.5f);
+            if (CameraShake.Instance != null) CameraShake.Instance.Shake(.16f, .09f);
+            Vector3 distance = player.position - transform.position; distance.y = 0;
+            if (distance.magnitude <= radius) playerHealth.TakeDamage(slamDamage);
+            yield return Recover("HopRecover", hop == 2 ? 1.6f : .28f);
+        }
+        Release();
     }
 
     IEnumerator Slam()
@@ -109,33 +225,43 @@ public class BossAttacks : MonoBehaviour
         slamCount++;
         enemy.externalMovement = true;      // plant it: a slam you can walk away from is not a threat
 
-        // the tell is a ring that keeps redrawing on the ground the boss is about to flatten
-        float t = 0f;
+        float t = 0f, nextTell = 0f;
         while (t < slamWindUp)
         {
-            if (!Ready()) { enemy.externalMovement = false; yield break; }
-            SwordSweep.Spawn(GroundPoint(), transform.forward, slamRadius, 360f, slamRadius * 0.88f,
-                             windUpColor, 0.2f, 1f);
-            t += 0.18f;
-            yield return new WaitForSeconds(0.18f);
+            if (!Ready()) { Release(); yield break; }
+            if(Time.timeScale<=0){yield return null;continue;}
+            t=Mathf.Min(slamWindUp,t+Time.deltaTime);
+            if(motion!=null)motion.Pose("SlamTell",t/Mathf.Max(.001f,slamWindUp));
+            if(t>=nextTell){SwordSweep.Spawn(GroundPoint(),transform.forward,slamRadius,360f,slamRadius*.88f,windUpColor,.2f,1f);nextTell=t+.18f;}
+            if(t<slamWindUp)yield return null;
         }
 
-        if (!Ready()) { enemy.externalMovement = false; yield break; }
+        if (!Ready()) { Release(); yield break; }
         while (Time.timeScale <= 0f) yield return null;
-        if (!Ready()) { enemy.externalMovement = false; yield break; }
+        if (!Ready()) { Release(); yield break; }
 
+        if(motion!=null){motion.Pose("SlamTell",1);motion.MarkImpact();}
+        GameAudio.Play(GameAudio.Sfx.AxeHit);
         // impact: one bright ring that reads as the shockwave, and one damage check
         SwordSweep.Spawn(GroundPoint(), transform.forward, slamRadius, 360f, slamRadius * 0.35f,
                          strikeColor, 0.35f, 1.5f);
-        HitImpact.Spawn(GroundPoint() + Vector3.up * 0.4f, transform.forward, 2.2f);
+        if(motion!=null)
+        {
+            foreach(var side in new[]{"L","R"})
+            {
+                var contact=motion.FistPoint(side);contact.y=GroundPoint().y+.15f;
+                HitImpact.Spawn(contact,Vector3.up,1.25f);
+            }
+        }
+        else HitImpact.Spawn(GroundPoint()+Vector3.up*.4f,transform.forward,2.2f);
         if (CameraShake.Instance != null) CameraShake.Instance.Shake(0.25f, 0.14f);
 
         Vector3 flat = player.position - transform.position;
         flat.y = 0f;
         if (flat.magnitude <= slamRadius) playerHealth.TakeDamage(slamDamage);
 
-        yield return new WaitForSeconds(slamRecover);
-        enemy.externalMovement = false;
+        yield return Recover("SlamRecover",slamRecover);
+        Release();
     }
 
     IEnumerator Charge()
@@ -151,45 +277,69 @@ public class BossAttacks : MonoBehaviour
         dir.Normalize();
         transform.forward = dir;
 
-        float t = 0f;
-        while (t < chargeWindUp)
+        float t=0f, nextTell=0f;
+        while(t<chargeWindUp)
         {
-            if (!Ready()) { enemy.externalMovement = false; yield break; }
-            // a narrow lane drawn down the path it is about to take
-            SwordSweep.Spawn(GroundPoint(), dir, chargeDistance, 22f, 1.5f, windUpColor, 0.2f, 1f);
-            t += 0.18f;
-            yield return new WaitForSeconds(0.18f);
+            if(!Ready()){Release();yield break;}
+            if(Time.timeScale<=0){yield return null;continue;}
+            t=Mathf.Min(chargeWindUp,t+Time.deltaTime);
+            if(motion!=null)motion.Pose("ChargeTell",t/Mathf.Max(.001f,chargeWindUp));
+            if(t>=nextTell){SwordSweep.Spawn(GroundPoint(),dir,chargeDistance,22f,1.5f,windUpColor,.2f,1f);nextTell=t+.18f;}
+            if(t<chargeWindUp)yield return null;
         }
 
         float travelled = 0f;
         bool connected = false;
         while (travelled < chargeDistance)
         {
-            if (!Ready()) { enemy.externalMovement = false; yield break; }
+            if (!Ready()) { Release(); yield break; }
             // Coroutines yielding null still run while the choice/inventory screen pauses time.
             if (Time.timeScale <= 0f) { yield return null; continue; }
+            if(motion!=null)motion.Pose("Charge",travelled/Mathf.Max(.001f,chargeDistance));
             float step = Mathf.Min(chargeSpeed * PowerUpEffects.EnemySpeedScale * Time.deltaTime,
                                    chargeDistance - travelled);
+            Vector3 before=transform.position;
             enemy.MoveAvoidingObstacles(dir * step);
-            travelled += step;
+            Vector3 movement=transform.position-before;movement.y=0;
+            travelled += movement.magnitude;
 
             if (!connected)
             {
-                Vector3 flat = player.position - transform.position;
-                flat.y = 0f;
+                Vector3 relative=player.position-before;relative.y=0;
+                float along=movement.sqrMagnitude>.00001f?Mathf.Clamp01(Vector3.Dot(relative,movement)/movement.sqrMagnitude):0;
+                Vector3 flat=relative-movement*along;
                 if (flat.magnitude <= chargeHitRadius + enemy.BodyRadiusWorld)
                 {
                     connected = true;
+                    if(motion!=null)motion.MarkImpact();
+                    GameAudio.Play(GameAudio.Sfx.Hit);
                     playerHealth.TakeDamage(chargeDamage);
                     HitImpact.Spawn(player.position + Vector3.up * 0.7f, dir, 1.6f);
                     if (CameraShake.Instance != null) CameraShake.Instance.Shake(0.2f, 0.12f);
                 }
             }
+            if(step>.001f && movement.magnitude<step*.1f)break;
             yield return null;
         }
 
-        SwordSweep.Spawn(GroundPoint(), dir, 4f, 360f, 2.5f, strikeColor, 0.3f, 1.4f);
-        yield return new WaitForSeconds(chargeRecover);
-        enemy.externalMovement = false;
+        yield return Recover("ChargeRecover",chargeRecover);
+        Release();
     }
+    void Release()
+    {
+        if(enemy!=null)enemy.externalMovement=false;
+        if(motion!=null)motion.Release();
+    }
+    IEnumerator Recover(string phase,float duration)
+    {
+        float t=0;
+        while(t<duration)
+        {
+            if(!Ready()){Release();yield break;}
+            if(Time.timeScale<=0){yield return null;continue;}
+            if(motion!=null)motion.Pose(phase,t/Mathf.Max(.001f,duration));
+            yield return null;t+=Time.deltaTime;
+        }
+    }
+
 }

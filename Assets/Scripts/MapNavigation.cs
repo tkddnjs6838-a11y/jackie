@@ -69,6 +69,27 @@ public sealed class MapNavigation : MonoBehaviour
         }
         return false;
     }
+    // One common placement rule for every stage, including the final exit.
+    public static bool PortalPoint(Vector3 origin,out Vector3 point,out Vector3 facing)
+    {
+        point=origin;facing=Vector3.forward;
+        for(int i=0;i<160;i++)
+        {
+            float angle=Random.Range(0f,360f);float distance=i<112?Random.Range(12f,28f):Random.Range(3f,12f);
+            var direction=Quaternion.Euler(0,angle,0)*Vector3.forward;
+            var near=origin+direction*distance;var terrain=Terrain.activeTerrain;
+            if(terrain!=null)near.y=terrain.SampleHeight(near)+terrain.transform.position.y;
+            if(!Sample(near,2,out var candidate) || !Clear(candidate,1.15f,3.2f) || !Reachable(candidate))continue;
+            var normal=origin-candidate;normal.y=0;if(normal.sqrMagnitude<1)continue;normal.Normalize();
+            // The opening needs usable floor on BOTH sides, not merely at its centre.
+            if(!Sample(candidate+normal*1.8f,.6f,out var front) || !Sample(candidate-normal*1.8f,.6f,out var back))continue;
+            if(Mathf.Abs(front.y-candidate.y)>.45f || Mathf.Abs(back.y-candidate.y)>.45f)continue;
+            if(!Clear(front,.65f,2.4f) || !Clear(back,.65f,2.4f) || NavMesh.Raycast(front,back,out _,NavMesh.AllAreas))continue;
+            point=candidate+Vector3.up*.12f;facing=normal;return true;
+        }
+        return false;
+    }
+
     public static bool MovePoint(Vector3 from,Vector3 delta,out Vector3 point)
     {
         point=from;

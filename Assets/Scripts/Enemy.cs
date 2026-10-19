@@ -53,9 +53,9 @@ public class Enemy : MonoBehaviour
     [HideInInspector] public bool contactDamageBalanced;
     [HideInInspector] public bool externalMovement;
 
-    private readonly System.Collections.Generic.Dictionary<EnemyWarden, float> shields = new System.Collections.Generic.Dictionary<EnemyWarden, float>();
-    public void SetShield(EnemyWarden source, float reduction) { shields[source] = Mathf.Clamp01(reduction); }
-    public void RemoveShield(EnemyWarden source) { shields.Remove(source); }
+    private readonly System.Collections.Generic.Dictionary<MonoBehaviour, float> shields = new System.Collections.Generic.Dictionary<MonoBehaviour, float>();
+    public void SetShield(MonoBehaviour source, float reduction) { shields[source] = Mathf.Clamp01(reduction); }
+    public void RemoveShield(MonoBehaviour source) { shields.Remove(source); }
     public float EffectiveDamageMultiplier
     {
         get
@@ -121,12 +121,27 @@ public class Enemy : MonoBehaviour
             cornerCount=0;cornerIndex=1;
             if(MapNavigation.Sample(transform.position,1,out var from) && MapNavigation.Sample(destination,3,out var to)
                 && NavMesh.CalculatePath(from,to,NavMesh.AllAreas,chasePath))
+            {
                 cornerCount=chasePath.GetCornersNonAlloc(chaseCorners);
+                // Pull boundary corners slightly onto clear floor. Otherwise a tiny
+                // rounding error or early turn can aim across the obstacle edge forever.
+                for(int c=1;c<cornerCount-1;c++)
+                {
+                    if(!NavMesh.FindClosestEdge(chaseCorners[c],out var edge,NavMesh.AllAreas))continue;
+                    var near=chaseCorners[c]+edge.normal*.3f;
+                    if(MapNavigation.Sample(near,.35f,out var inset)
+                        && !NavMesh.Raycast(chaseCorners[c-1],inset,out _,NavMesh.AllAreas)
+                        && !NavMesh.Raycast(inset,chaseCorners[c+1],out _,NavMesh.AllAreas))chaseCorners[c]=inset;
+                }
+            }
         }
         while(cornerIndex<cornerCount)
         {
             var delta=chaseCorners[cornerIndex]-transform.position;delta.y=0;
-            if(delta.sqrMagnitude>.000001f)return delta.normalized*Mathf.Min(1f,delta.magnitude/(Mathf.Max(moveSpeed,4.5f)*Mathf.Max(Time.deltaTime,.001f)));
+            // A path corner lies on the baked obstacle boundary. Requiring exact contact
+            // can strand the walker a few centimetres short after NavMesh.Raycast clamps it.
+            float tolerance=cornerIndex<cornerCount-1?.06f:.03f;
+            if(delta.sqrMagnitude>tolerance*tolerance)return delta.normalized*Mathf.Min(1f,delta.magnitude/(Mathf.Max(moveSpeed,4.5f)*Mathf.Max(Time.deltaTime,.001f)));
             cornerIndex++;
         }
         return Vector3.zero;
@@ -151,9 +166,8 @@ public class Enemy : MonoBehaviour
         if (playerObj != null)
             player = playerObj.transform;
 
-        if (!isBoss)
         {
-            if (preserveModelColors)
+            if (preserveModelColors || isBoss)
             {
                 baseColor = Color.white;
                 hasBaseColor = true;
@@ -162,7 +176,7 @@ public class Enemy : MonoBehaviour
             else if (randomizeColor) ApplyRandomColor();
             else ApplyVariantColor();
         }
-        else if (OnBossSpawned != null)
+        if (isBoss && OnBossSpawned != null)
             OnBossSpawned(this);
     }
 
@@ -340,10 +354,11 @@ public class Enemy : MonoBehaviour
             currentHealth = Mathf.Max(0f, currentHealth - amount);
             var dent = GetComponent<WaxDent>();
             if (dent == null) dent = gameObject.AddComponent<WaxDent>();
-            if (!dent.Punch(contact, 1f - HealthFraction, currentHealth <= 0f, dentStrength))
+            dent.Punch(contact, 1f - HealthFraction, currentHealth <= 0f, dentStrength);
+            if(!isBoss && currentHealth>0f)
             {
-                var waddle = GetComponent<CreatureWaddle>();
-                if (waddle != null) waddle.PunchSquish();
+                var waddle=GetComponent<CreatureWaddle>();
+                if(waddle!=null)waddle.PunchSquish(contact,dentStrength);
             }
             if (crackVisual != null)
                 crackVisual.SetDamage(1f - HealthFraction);
@@ -367,8 +382,11 @@ public class Enemy : MonoBehaviour
 
     System.Collections.IEnumerator HitFlash()
     {
-        SetTint(Color.white);
-        yield return new WaitForSeconds(hitFlashDuration);
+        // Imported textured bosses keep their authored material colors.
+        if (preserveModelColors || isBoss) yield break;
+        // Keep the shell hue readable even under repeated hits.
+        SetTint(Color.Lerp(baseColor, Color.white, 0.22f));
+        yield return new WaitForSecondsRealtime(Mathf.Min(hitFlashDuration, 0.08f));
 
         if (isDying) yield break;
 
@@ -381,7 +399,7 @@ public class Enemy : MonoBehaviour
     void Die()
     {
 
-        SetTint(InnerSlimeColor());
+        if (!isBoss) SetTint(InnerSlimeColor());
         if (crackVisual != null) crackVisual.ShowCorpseCracks();
         isDying = true;
         activeEnemies.Remove(this);
@@ -413,7 +431,9 @@ public class Enemy : MonoBehaviour
         yield return new WaitForSeconds(0.07f);
         if (shardBurst != null) shardBurst.Burst(hasBaseColor ? baseColor : Color.white, true);
         Vector3 startScale = transform.localScale;
-        Vector3 endScale = new Vector3(startScale.x * 1.85f, startScale.y * 0.025f, startScale.z * 1.85f);
+        float spread = isBoss ? 1.2f : 1.45f;
+        float height = isBoss ? 0.28f : 0.1f;
+        Vector3 endScale = new Vector3(startScale.x * spread, startScale.y * height, startScale.z * spread);
         float t = 0f;
 
         while (t < squishDuration)
@@ -494,7 +514,7 @@ public class Enemy : MonoBehaviour
             contactDamageBalanced = true;
         }
         currentHealth = maxHealth;
-        if (preserveModelColors)
+        if (preserveModelColors || isBoss)
         {
             baseColor = Color.white;
             hasBaseColor = true;

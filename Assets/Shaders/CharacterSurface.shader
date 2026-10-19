@@ -4,6 +4,8 @@ Shader "Game/CharacterSurface"
     {
         _BaseMap("Original Face Texture", 2D) = "white" {}
         _BodyColor("Body Tone", Color) = (0.43,0.45,0.48,1)
+        _RimColor("Soft Rim Color", Color) = (0.13,0.23,0.32,1)
+        _RimStrength("Soft Rim Strength", Range(0,1)) = 0
         _Cleanup("Baked Shading Cleanup", Range(0,1)) = 0.95
     }
     SubShader
@@ -23,6 +25,8 @@ Shader "Game/CharacterSurface"
             float4 _BaseMap_ST;
             half4 _BodyColor;
             half _Cleanup;
+            half4 _RimColor;
+            half _RimStrength;
             CBUFFER_END
             struct Attributes { float4 positionOS:POSITION; float3 normalOS:NORMAL; float2 uv:TEXCOORD0; };
             struct Varyings { float4 positionCS:SV_POSITION; float3 positionWS:TEXCOORD0; half3 normalWS:TEXCOORD1; float2 uv:TEXCOORD2; };
@@ -46,7 +50,12 @@ Shader "Game/CharacterSurface"
                 half diffuse=saturate(dot(n,light.direction)*0.7+0.3);
                 half3 illumination=max(SampleSH(n),half3(0.20,0.20,0.20));
                 illumination+=light.color*diffuse*lerp(0.4,1,light.shadowAttenuation);
-                return half4(albedo*illumination,1);
+                // Camera-facing fill and a restrained edge light keep black cloth readable.
+                half3 view=normalize(GetWorldSpaceViewDir(i.positionWS));
+                half facing=saturate(dot(n,view));
+                half rim=pow(1-facing,3)*_RimStrength;
+                half3 fill=_RimColor.rgb*(rim+facing*0.08*_RimStrength);
+                return half4(albedo*illumination+fill*body,1);
             }
             ENDHLSL
         }

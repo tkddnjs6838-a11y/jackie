@@ -37,6 +37,8 @@ public class CreatureWaddle : MonoBehaviour
     private Vector3 chargerPoseOffset;
     private Quaternion chargerPoseRotation = Quaternion.identity;
 private float hitSquishTime = -1f;
+    Vector3 hitDirection;
+    float hitIntensity=1f;
 
     private Vector3 restPosition;
     private Quaternion restRotation;
@@ -62,9 +64,12 @@ void Start()
         charger = GetComponent<EnemyCharger>();
     }
 
-    public void PunchSquish()
+    public void PunchSquish() { PunchSquish(transform.position-transform.forward,1f); }
+    public void PunchSquish(Vector3 contact,float strength)
     {
-        hitSquishTime = 0f;
+        hitSquishTime=0f;hitIntensity=Mathf.Clamp(strength,.2f,1.2f);
+        Vector3 away=transform.position-contact;away.y=0;
+        hitDirection=transform.InverseTransformDirection(away.sqrMagnitude>.001f?away.normalized:transform.forward);
     }
 
 
@@ -149,13 +154,14 @@ void LateUpdate()
         if (hitSquishTime >= 0f)
         {
             hitSquishTime += dt;
-            float duration = Mathf.Max(0.38f, hitSquishDuration);
-            float strength = Mathf.Max(0.42f, hitSquash);
+            float duration = .3f;
             float progress = Mathf.Clamp01(hitSquishTime / duration);
-            float pulse = Mathf.Sin(progress * Mathf.PI);
-            float side = 1f + strength * pulse;
-            float height = Mathf.Max(0.16f, 1f - strength * pulse);
-            finalScale = Vector3.Scale(finalScale, new Vector3(side, height, side));
+            float pulse = Mathf.Sin(progress*Mathf.PI*2f)*Mathf.Exp(-3f*progress)*hitIntensity;
+            float height = 1f-.18f*pulse;
+            float side = 1f/Mathf.Sqrt(height);
+            finalScale=Vector3.Scale(finalScale,new Vector3(side,height,side));
+            body.localPosition+=hitDirection*(.12f*pulse);
+            body.localRotation*=Quaternion.AngleAxis(12f*pulse,Vector3.Cross(Vector3.up,hitDirection));
 
             if (progress >= 1f)
                 hitSquishTime = -1f;

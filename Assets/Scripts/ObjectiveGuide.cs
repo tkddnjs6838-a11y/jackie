@@ -26,6 +26,7 @@ public class ObjectiveGuide : MonoBehaviour
 
     private float bannerTimer;
     private Camera cam;
+    Sprite ownedArrow;
     NavMeshPath route;
     readonly Vector3[] corners=new Vector3[64];
     Vector3 waypoint;
@@ -36,11 +37,18 @@ public class ObjectiveGuide : MonoBehaviour
         ResetGuide();target=destination;stageGuide=true;
         bannerMessage=finalStage?"최종 보스 격파 · 출구로 이동하세요":"스테이지 클리어 · 다음 포탈이 열렸습니다";
         distanceFormat="포탈까지 {0} m";
-        if(guideRoot!=null)GameUiStyle.Apply(guideRoot.GetComponent<Image>(),GameUiStyle.Ink);
-        if(bannerRoot!=null)GameUiStyle.Apply(bannerRoot.GetComponent<Image>(),GameUiStyle.Ink);
+        if(guideRoot!=null)
+        {
+            var panel=guideRoot.GetComponent<Image>();if(panel==null)panel=guideRoot.AddComponent<Image>();
+            panel.raycastTarget=false;ToyHudStyle.Frame(panel);
+            var r=guideRoot.GetComponent<RectTransform>();r.anchorMin=r.anchorMax=new Vector2(.5f,1);r.pivot=new Vector2(.5f,1);r.anchoredPosition=new Vector2(0,-100);r.sizeDelta=new Vector2(246,70);
+            if(arrowRect!=null){arrowRect.anchorMin=arrowRect.anchorMax=arrowRect.pivot=new Vector2(.5f,.5f);arrowRect.anchoredPosition=new Vector2(-87,0);arrowRect.sizeDelta=new Vector2(42,42);arrowRect.SetAsLastSibling();}
+            if(distanceText!=null){var t=distanceText.rectTransform;t.anchorMin=t.anchorMax=t.pivot=new Vector2(.5f,.5f);t.anchoredPosition=new Vector2(23,0);t.sizeDelta=new Vector2(180,54);distanceText.fontSize=17;distanceText.alignment=TextAnchor.MiddleCenter;t.SetAsLastSibling();}
+        }
+        if(bannerRoot!=null)ToyHudStyle.Frame(bannerRoot.GetComponent<Image>());
         var font=Resources.Load<Font>("UI/AugmentKorean");
-        if(distanceText!=null){distanceText.font=font;distanceText.color=new Color(.84f,.86f,.84f);}
-        if(bannerText!=null){bannerText.font=font;bannerText.color=new Color(.84f,.86f,.84f);bannerText.fontSize=24;}
+        if(distanceText!=null){distanceText.font=font;distanceText.color=new Color(.9f,.95f,1f);}
+        if(bannerText!=null){bannerText.font=font;bannerText.color=new Color(.9f,.95f,1f);bannerText.fontSize=24;}
     }
     public void ResetGuide()
     {
@@ -63,8 +71,7 @@ public class ObjectiveGuide : MonoBehaviour
             if (p != null) player = p.transform;
         }
 
-        if (arrowImage != null && arrowImage.sprite == null)
-            arrowImage.sprite = BuildArrowSprite();
+        if (arrowImage != null){ownedArrow=BuildArrowSprite();arrowImage.sprite=ownedArrow;arrowImage.preserveAspect=true;}
 
         if (guideRoot != null) guideRoot.SetActive(false);
         if (bannerRoot != null) bannerRoot.SetActive(false);
@@ -143,7 +150,7 @@ public class ObjectiveGuide : MonoBehaviour
 
         if (distanceText != null)
             distanceText.text = dist <= arrivedDistance
-                ? (stageGuide?"E  포탈 입장":"Goal  arrived")
+                ? (stageGuide?"포탈 안으로\n걸어가세요":"Goal  arrived")
                 : string.Format(distanceFormat, Mathf.RoundToInt(stageGuide?Mathf.Max(dist,routeDistance):dist));
 
         // --- arrow rotation toward the target ---
@@ -164,9 +171,11 @@ public class ObjectiveGuide : MonoBehaviour
         }
     }
 
+    void OnDestroy(){if(ownedArrow!=null){Destroy(ownedArrow.texture);Destroy(ownedArrow);}}
+
     Sprite BuildArrowSprite()
     {
-        const int size = 64;
+        const int size = 128;
         var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
         tex.filterMode = FilterMode.Bilinear;
 
@@ -174,10 +183,10 @@ public class ObjectiveGuide : MonoBehaviour
         for (int y = 0; y < size; y++)
         {
             float t = (float)y / (size - 1);            // 0 at base, 1 at tip
-            float halfWidth = (1f - t) * 0.5f * size;
+            float halfWidth = (t >= .48f ? (1f-t)*.9f : .12f) * size;
             for (int x = 0; x < size; x++)
             {
-                bool inside = Mathf.Abs(x - size * 0.5f) <= halfWidth;
+                bool inside = y>=size*.08f && y<=size*.94f && Mathf.Abs(x - size * 0.5f) <= halfWidth;
                 tex.SetPixel(x, y, inside ? Color.white : clear);
             }
         }

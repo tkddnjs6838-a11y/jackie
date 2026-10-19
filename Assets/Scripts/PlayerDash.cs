@@ -82,8 +82,11 @@ public class PlayerDash : MonoBehaviour
         return dir.normalized;
     }
 
+    public void CancelMotion() { dashTimer=0f; dashRemaining=0f; }
+
     void StartDash(Vector3 direction)
     {
+        GetComponent<CharacterGrowth>()?.ArmDashStrike();
         dashDirection = direction;
         dashTimer = dashDuration;
         dashRemaining = dashDistance;

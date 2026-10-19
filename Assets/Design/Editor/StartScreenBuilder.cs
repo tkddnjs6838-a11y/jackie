@@ -155,8 +155,8 @@ public static class StartScreenBuilder
         guide.type = Image.Type.Sliced;
         var rows = new[]
         {
-            new[] { ("WASD", "이동", 92f), ("좌클릭", "기본 공격", 92f), ("우클릭", "강공격", 92f) },
-            new[] { ("Space", "회피", 92f), ("좌→좌→우", "마무리 콤보", 132f), ("Tab", "보유 증강 확인", 70f) },
+            new[] { ("WASD", "이동", 92f), ("좌클릭", "기본 공격", 92f), ("1–5", "무기 교체", 92f) },
+            new[] { ("Space", "회피", 92f), ("R", "재장전", 132f), ("Tab", "보유 증강 확인", 70f) },
         };
         for (int r = 0; r < rows.Length; r++)
             for (int c = 0; c < 3; c++)

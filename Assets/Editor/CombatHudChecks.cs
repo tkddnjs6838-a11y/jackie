@@ -20,7 +20,7 @@ public static class CombatHudChecks
         var spawner=Object.FindFirstObjectByType<EnemySpawner>();spawner.enabled=false;health.GrantInvincibility(1000);gun.ReadInput=false;
         try
         {
-            hud.Refresh();Check(hud.Root.activeSelf && hud.AmmoLabel.text=="∞" && hud.VisibleAmmoIndicators==0,"sword uses infinite melee display without bullet indicators");
+            hud.Refresh();Check(hud.Root.activeSelf && hud.AmmoLabel.text=="" && hud.VisibleAmmoIndicators==0,"sword hides ammunition and bullet indicators");
             var hp=hud.Root.transform.Find("Health").GetComponent<RectTransform>();var dash=hud.Root.transform.Find("Dash").GetComponent<RectTransform>();
             Check(hp.anchorMax==Vector2.one && dash.anchorMax==Vector2.one && dash.anchoredPosition.y<hp.anchoredPosition.y,"HP top right with dash immediately below");
             weapons.CollectGun(PlayerWeapons.Kind.Shotgun);weapons.TryEquip(PlayerWeapons.Kind.Shotgun);hud.Refresh();
@@ -34,7 +34,7 @@ public static class CombatHudChecks
             weapons.CollectGun(PlayerWeapons.Kind.MachineGun);weapons.TryEquip(PlayerWeapons.Kind.MachineGun);hud.Refresh();Check(hud.VisibleAmmoIndicators==30 && hud.LitAmmoIndicators==gun.Ammo,"machine gun uses 30 capacity indicators");
             weapons.CollectGun(PlayerWeapons.Kind.LaserGun);weapons.TryEquip(PlayerWeapons.Kind.LaserGun);hud.Refresh();Check(hud.VisibleAmmoIndicators==3,"laser uses three energy indicators");
             var mag=(int[])typeof(PlayerGunCombat).GetField("magazine",P).GetValue(gun);var reserve=(int[])typeof(PlayerGunCombat).GetField("reserve",P).GetValue(gun);mag[2]=0;reserve[2]=0;hud.Refresh();Check(hud.StateLabel.text.Contains("탄약 없음") && hud.LitAmmoIndicators==0,"empty reserve prompts weapon change");
-            weapons.TryEquip(PlayerWeapons.Kind.Sword);hud.Refresh();Check(hud.VisibleAmmoIndicators==0 && hud.AmmoLabel.text=="∞","switching back to sword removes ammo UI");
+            weapons.TryEquip(PlayerWeapons.Kind.Sword);hud.Refresh();Check(hud.VisibleAmmoIndicators==0 && hud.AmmoLabel.text=="","switching back to sword removes ammo UI");
             typeof(RunStats).GetField("<Running>k__BackingField",P).SetValue(RunStats.Instance,false);hud.Refresh();Check(!hud.Root.activeSelf,"HUD hidden when run ends");
             Debug.Log("COMBAT HUD CHECKS COMPLETE\n"+report);
         }

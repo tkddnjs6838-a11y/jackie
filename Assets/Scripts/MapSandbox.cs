@@ -18,9 +18,8 @@ public sealed class MapSandbox : MonoBehaviour
     GameFlowManager flow;
     EnemySpawner spawner;
     GameObject portals, hud;
-    Text status,stageTitle;
-    Image[] stagePips=new Image[5];
-    Material portalMaterial;
+    Text status,stageTitle,stageNumber;
+    Image killProgress,stageIcon;
     float readyAt;
     bool TestMode=>MapSandboxSettings.Enabled;
     bool portalUnlocked;
@@ -44,14 +43,15 @@ public sealed class MapSandbox : MonoBehaviour
         yield return ChangeMap(0);
         flow.startButton.interactable=CurrentMap==0 && !Busy;
     }
-    public bool CanInteractWithPortal
+    // Compatibility for the touch HUD: portals now activate by walking through.
+    public bool CanInteractWithPortal=>false;
+    public bool EnterPortal(int index)
     {
-        get
-        {
-            if(Busy || CurrentMap<0 || player==null || (!TestMode && !portalUnlocked))return false;
-            for(int i=0;i<5;i++)if((TestMode || i==Mathf.Min(CurrentMap+1,4)) && (player.transform.position-PortalPositions[i]).sqrMagnitude<2.3f*2.3f)return true;
-            return false;
-        }
+        if(Busy || player==null || Time.unscaledTime<readyAt || Time.timeScale<=0 || RunStats.Instance==null || !RunStats.Instance.Running)return false;
+        if(index<0 || index>=Maps.Length || (!TestMode && (!portalUnlocked || index!=Mathf.Min(CurrentMap+1,4))))return false;
+        if((player.transform.position-PortalPositions[index]).sqrMagnitude>2.3f*2.3f)return false;
+        if(!TestMode && CurrentMap==4){flow.CompleteStages();return true;}
+        return TravelTo(index);
     }
     public bool TravelTo(int index)
     {
@@ -67,18 +67,13 @@ public sealed class MapSandbox : MonoBehaviour
         hud.SetActive(running || Busy);
         if(Busy){status.text="맵 이동 중…";return;}
         if(!running || player==null || CurrentMap<0)return;
-        string hint="포탈 근처에서 E 이동 · F1~F5 바로 이동 · F6 시작 지점";
-        int nearby=-1;
-        for(int i=0;i<5;i++)
-            if((TestMode || (portalUnlocked && i==Mathf.Min(CurrentMap+1,4))) && Vector3.Distance(player.transform.position,PortalPositions[i])<2.3f){nearby=i;hint="E  →  "+(i+1)+". "+Names[i];break;}
+        string hint="포탈 안으로 이동 · F1~F5 바로 이동 · F6 시작 지점";
         status.text="테스트 · 무적 / 무한 탄약   |   "+(CurrentMap+1)+". "+Names[CurrentMap]+"\n1 칼  2 도끼  3 샷건  4 기관총  5 레이저\n"+hint;
-        if(stageTitle!=null){stageTitle.text=Busy?"이동 중":$"STAGE {CurrentMap+1:00}  /  {Names[CurrentMap]}";for(int j=0;j<5;j++)stagePips[j].color=j<=CurrentMap?new Color(.59f,.68f,.66f):new Color(.2f,.26f,.32f);}
-        if(!TestMode)status.text=(portalUnlocked?(CurrentMap==4?"최종 보스 격파 · 포탈에서 E로 완료":"보스 격파 · 포탈에서 E로 다음 스테이지"):spawner!=null && spawner.KillCount<spawner.killsToSpawnBoss?$"몬스터 처치  {spawner.KillCount} / {spawner.killsToSpawnBoss}  ·  보스 소환 준비":"보스 격파 후 다음 스테이지로 이동");
-        if(MobileControls.Enabled)status.text=status.text.Replace("E로", "이동 버튼으로");
+        if(stageTitle!=null){stageTitle.text=Names[CurrentMap];stageNumber.text=$"STAGE {CurrentMap+1:00}";stageIcon.sprite=ToyHudStyle.Map(CurrentMap);}
+        if(!TestMode)status.text=(portalUnlocked?(CurrentMap==4?"포탈을 통과하면 모험 완료":"포탈을 통과해 다음 스테이지로"):spawner!=null?spawner.ObjectiveStatus:"몬스터를 처치하세요");
+        if(killProgress!=null && spawner!=null)killProgress.rectTransform.anchorMax=new Vector2(Mathf.Clamp01((float)spawner.KillCount/Mathf.Max(1,spawner.killsToSpawnBoss)),1);
         if(Time.timeScale<=0 || Time.unscaledTime<readyAt)return;
         var k=Keyboard.current;
-        bool interact=MobileControls.TakeInteract() || (k!=null && k.eKey.wasPressedThisFrame);
-        if(nearby>=0 && interact){if(!TestMode && CurrentMap==4)flow.CompleteStages();else TravelTo(nearby);return;}
         if(!TestMode || k==null)return;
         for(int i=0;i<5;i++)if(k[(Key)((int)Key.F1+i)].wasPressedThisFrame){TravelTo(i);return;}
         if(k.f6Key.wasPressedThisFrame)PlacePlayer();
@@ -87,6 +82,8 @@ public sealed class MapSandbox : MonoBehaviour
     {
         Busy=true;
         foreach(var guide in FindObjectsByType<ObjectiveGuide>(FindObjectsSortMode.None))guide.ResetGuide();
+        player.GetComponent<PlayerAutoAttack>()?.EndImpactSlowdown();
+        player.GetComponent<PlayerDash>()?.CancelMotion();
         float previousScale=Time.timeScale;
         bool spawnEnabled=spawner!=null && spawner.enabled;
         if(spawner!=null)spawner.enabled=false;
@@ -109,6 +106,7 @@ public sealed class MapSandbox : MonoBehaviour
             yield return SceneManager.LoadSceneAsync(path,LoadSceneMode.Additive);
             environment=SceneManager.GetSceneByPath(path);
             SceneManager.SetActiveScene(environment);
+            MapMood.ApplyIn(environment); // the player's theme; the scene itself bakes the bright look
             Transform marker=null;
             foreach(var root in environment.GetRootGameObjects())
             {
@@ -146,12 +144,6 @@ public sealed class MapSandbox : MonoBehaviour
     void BuildPortals()
     {
         portals=new GameObject("SandboxPortals");SceneManager.MoveGameObjectToScene(portals,gameObject.scene);
-        if(portalMaterial==null)
-        {
-            var shader=Shader.Find("Universal Render Pipeline/Unlit");
-            if(shader==null)shader=Shader.Find("Unlit/Color");
-            portalMaterial=new Material(shader);
-        }
         var forward=new Vector3(-Arrival.x,0,-Arrival.z).normalized;
         if(forward.sqrMagnitude<.01f)forward=Vector3.forward;
         for(int i=0;i<5;i++)
@@ -161,29 +153,18 @@ public sealed class MapSandbox : MonoBehaviour
             var position=Arrival+direction*5;
             if(Physics.Raycast(position+Vector3.up*50,Vector3.down,out var hit,100,~(1<<2),QueryTriggerInteraction.Ignore))position.y=hit.point.y+.12f;
             else if(Terrain.activeTerrain!=null)position.y=Terrain.activeTerrain.SampleHeight(position)+Terrain.activeTerrain.transform.position.y+.12f;
-            if(!TestMode && MapNavigation.DropPoint(position,out var safePortal))position=safePortal+Vector3.up*.12f;
+            if(!TestMode)
+            {
+                if(!MapNavigation.PortalPoint(Arrival,out position,out direction))
+                    throw new System.InvalidOperationException("No reachable portal clearance on "+Maps[CurrentMap]);
+            }
             PortalPositions[i]=position;
-            var ring=new GameObject("Portal_"+(i+1),typeof(LineRenderer));ring.layer=2;ring.transform.SetParent(portals.transform);ring.transform.position=position;
+            var ring=new GameObject("Portal_"+(i+1));ring.layer=2;ring.transform.SetParent(portals.transform);ring.transform.position=position;
             if(!TestMode)foreach(var guide in FindObjectsByType<ObjectiveGuide>(FindObjectsSortMode.None))guide.SetStageTarget(ring.transform,CurrentMap==4);
-            var color=TestMode?Color.HSVToRGB(i/5f,.65f,1):new Color(.59f,.68f,.66f);
-            var line=ring.GetComponent<LineRenderer>();line.sharedMaterial=portalMaterial;line.useWorldSpace=false;line.loop=true;line.positionCount=48;
-            var tint=new MaterialPropertyBlock();tint.SetColor("_BaseColor",color);tint.SetColor("_Color",color);line.SetPropertyBlock(tint);
-            line.startWidth=line.endWidth=.1f;line.startColor=line.endColor=color;
-            var side=Vector3.Cross(Vector3.up,direction).normalized;
-            for(int j=0;j<48;j++){float a=j*Mathf.PI*2/48;line.SetPosition(j,side*Mathf.Cos(a)*.9f+Vector3.up*(1.25f+Mathf.Sin(a)*1.2f));}
-            var board=new GameObject("Destination",typeof(RectTransform),typeof(Canvas));board.transform.SetParent(ring.transform,false);
-            var canvas=board.GetComponent<Canvas>();canvas.renderMode=RenderMode.WorldSpace;
-            board.GetComponent<RectTransform>().sizeDelta=new Vector2(260,75);board.transform.localScale=Vector3.one*.01f;board.transform.localPosition=Vector3.up*2.9f;
-            var label=new GameObject("Label",typeof(RectTransform),typeof(Text));label.transform.SetParent(board.transform,false);
-            var rt=label.GetComponent<RectTransform>();rt.anchorMin=Vector2.zero;rt.anchorMax=Vector2.one;rt.offsetMin=rt.offsetMax=Vector2.zero;
-            var text=label.GetComponent<Text>();text.font=Resources.Load<Font>("UI/AugmentKorean");text.fontSize=24;text.alignment=TextAnchor.MiddleCenter;text.color=color;text.text=(!TestMode && CurrentMap==4)?"완주\n[E] 완료":(i+1)+". "+Names[i]+"\n[E] 이동";text.raycastTarget=false;
+            ring.AddComponent<DestinationPortal>().Build(i,direction,!TestMode && CurrentMap==4);
         }
     }
-    void LateUpdate()
-    {
-        if(portals==null || Camera.main==null)return;
-        foreach(Transform portal in portals.transform)portal.GetChild(0).rotation=Camera.main.transform.rotation;
-    }
+
     void CreateHud()
     {
         hud=new GameObject("SandboxStatus",typeof(RectTransform),typeof(Canvas),typeof(CanvasScaler));
@@ -191,29 +172,35 @@ public sealed class MapSandbox : MonoBehaviour
         var canvas=hud.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=350;
         var scaler=hud.GetComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1280,720);
         var panel=new GameObject("Panel",typeof(RectTransform),typeof(Image));panel.transform.SetParent(hud.transform,false);
-        var r=panel.GetComponent<RectTransform>();r.anchorMin=r.anchorMax=new Vector2(.5f,0);r.pivot=new Vector2(.5f,0);r.anchoredPosition=new Vector2(0,12);r.sizeDelta=TestMode?new Vector2(580,82):new Vector2(300,80);
+        var r=panel.GetComponent<RectTransform>();r.anchorMin=r.anchorMax=new Vector2(.5f,0);r.pivot=new Vector2(.5f,0);r.anchoredPosition=new Vector2(0,12);r.sizeDelta=TestMode?new Vector2(580,82):new Vector2(244,100);
         var bg=panel.GetComponent<Image>();bg.color=new Color(.02f,.03f,.05f,.85f);bg.raycastTarget=false;
         var label=new GameObject("Status",typeof(RectTransform),typeof(Text));label.transform.SetParent(panel.transform,false);
         r=label.GetComponent<RectTransform>();r.anchorMin=Vector2.zero;r.anchorMax=Vector2.one;r.offsetMin=r.offsetMax=Vector2.zero;
         status=label.GetComponent<Text>();status.font=Resources.Load<Font>("UI/AugmentKorean");status.fontSize=16;status.alignment=TextAnchor.MiddleCenter;status.color=new Color(.84f,.89f,.94f);status.raycastTarget=false;
         if(!TestMode)
         {
-            var panelRect=panel.GetComponent<RectTransform>();panelRect.anchorMin=panelRect.anchorMax=new Vector2(0,1);panelRect.pivot=new Vector2(0,1);panelRect.anchoredPosition=new Vector2(20,-82);
-            if(MobileControls.Enabled){panelRect.localScale=Vector3.one*.8f;panelRect.anchoredPosition=new Vector2(64,-82);}
-            status.fontSize=13;
-            GameUiStyle.Apply(bg,GameUiStyle.Ink);GameUiStyle.Accent(panel.transform);
-            var border=panel.AddComponent<Outline>();border.effectColor=new Color(.32f,.34f,.36f,.4f);border.effectDistance=new Vector2(1,-1);
-            r.anchorMin=new Vector2(0,0);r.anchorMax=new Vector2(1,.48f);
-            var title=new GameObject("StageTitle",typeof(RectTransform),typeof(Text));title.transform.SetParent(panel.transform,false);
-            var tr=title.GetComponent<RectTransform>();tr.anchorMin=new Vector2(0,.45f);tr.anchorMax=new Vector2(1,.88f);tr.offsetMin=tr.offsetMax=Vector2.zero;
-            stageTitle=title.GetComponent<Text>();stageTitle.font=status.font;stageTitle.fontSize=18;stageTitle.fontStyle=FontStyle.Bold;stageTitle.color=new Color(.84f,.86f,.84f);stageTitle.alignment=TextAnchor.MiddleCenter;stageTitle.raycastTarget=false;
-            for(int j=0;j<5;j++)
-            {
-                var pip=new GameObject("StageProgress"+j,typeof(RectTransform),typeof(Image));pip.transform.SetParent(panel.transform,false);
-                var pr=pip.GetComponent<RectTransform>();pr.anchorMin=new Vector2(.04f+j*.188f,.91f);pr.anchorMax=new Vector2(.204f+j*.188f,.95f);pr.offsetMin=pr.offsetMax=Vector2.zero;
-                stagePips[j]=pip.GetComponent<Image>();stagePips[j].raycastTarget=false;
-            }
+            var panelRect=panel.GetComponent<RectTransform>();panelRect.anchorMin=panelRect.anchorMax=new Vector2(0,1);panelRect.pivot=new Vector2(0,1);panelRect.anchoredPosition=new Vector2(20,-26);
+            if(MobileControls.Enabled){panelRect.localScale=Vector3.one*.8f;panelRect.anchoredPosition=new Vector2(64,-26);}
+            if(!MobileControls.Enabled)panelRect.localScale=Vector3.one*.88f;
+            panel.AddComponent<UiSafePanel>();status.fontSize=13;status.resizeTextForBestFit=true;status.resizeTextMinSize=11;status.resizeTextMaxSize=13;
+            ToyHudStyle.Frame(bg);status.transform.SetAsLastSibling();
+            status.color=new Color(.87f,.94f,1);status.alignment=TextAnchor.MiddleLeft;
+            r.anchorMin=new Vector2(0,0);r.anchorMax=new Vector2(1,0);
+            r.offsetMin=new Vector2(94,26);r.offsetMax=new Vector2(-12,53);
+            status.resizeTextMinSize=10;status.resizeTextMaxSize=13;
+            var tab=ToyHudStyle.Piece(panel.transform,"StageTab",new Vector2(-48,47),new Vector2(102,25),Color.white);ToyHudStyle.Frame(tab,false,true);
+            stageNumber=GameUiStyle.Label(tab.transform,"Number","STAGE 01",status.font,14,new Color(.04f,.10f,.18f),Vector2.zero,new Vector2(98,24),true);
+            stageIcon=ToyHudStyle.Piece(panel.transform,"MapIcon",new Vector2(-72,-1),new Vector2(80,70),Color.white);stageIcon.type=Image.Type.Simple;stageIcon.preserveAspect=true;stageIcon.sprite=ToyHudStyle.Map(0);
+            stageTitle=GameUiStyle.Label(panel.transform,"StageTitle","",status.font,24,Color.white,new Vector2(44,18),new Vector2(144,32),true);stageTitle.alignment=TextAnchor.MiddleLeft;
+            var track=new GameObject("KillProgress",typeof(RectTransform),typeof(Image));track.transform.SetParent(panel.transform,false);
+            var trackRect=track.GetComponent<RectTransform>();trackRect.anchorMin=new Vector2(0,0);trackRect.anchorMax=new Vector2(1,0);trackRect.offsetMin=new Vector2(16,13);trackRect.offsetMax=new Vector2(-16,21);
+            GameUiStyle.Apply(track.GetComponent<Image>(),new Color(.015f,.06f,.13f));track.GetComponent<Image>().raycastTarget=false;track.GetComponent<Image>().pixelsPerUnitMultiplier=12;
+            var edge=track.AddComponent<Outline>();edge.effectColor=GameUiStyle.Blue;edge.effectDistance=new Vector2(1,-1);
+            var fill=new GameObject("Fill",typeof(RectTransform),typeof(Image));fill.transform.SetParent(track.transform,false);
+            killProgress=fill.GetComponent<Image>();GameUiStyle.Apply(killProgress,GameUiStyle.Blue);killProgress.raycastTarget=false;killProgress.pixelsPerUnitMultiplier=12;
+            killProgress.rectTransform.anchorMin=Vector2.zero;killProgress.rectTransform.anchorMax=Vector2.one;killProgress.rectTransform.offsetMin=killProgress.rectTransform.offsetMax=Vector2.zero;
+
         }
     }
-    void OnDestroy(){if(hud!=null)Destroy(hud);if(portalMaterial!=null)Destroy(portalMaterial);if(portals!=null)Destroy(portals);}
+    void OnDestroy(){if(hud!=null)Destroy(hud);if(portals!=null)Destroy(portals);}
 }

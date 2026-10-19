@@ -24,7 +24,10 @@ public class WaxShardBurst : MonoBehaviour
             var bounds = source.bounds;
             float radius = Mathf.Min(bounds.extents.x, bounds.extents.z);
             Vector3 center = bounds.center + Vector3.up * bounds.extents.y * 0.18f;
+            var enemy=GetComponent<Enemy>();
+            bool smallMonster=enemy!=null && !enemy.isBoss;
             int count = lethal ? chipsOnDeath : chipsPerHit;
+            if(smallMonster && count>0) count+=lethal?4:2;
             if (count <= 0) return;
             if (Application.isMobilePlatform)
             {
@@ -46,7 +49,8 @@ public class WaxShardBurst : MonoBehaviour
                 var go = new GameObject("WaxShellChip");
                 go.transform.position = center + direction * radius * 0.88f;
                 go.transform.rotation = Quaternion.LookRotation(direction);
-                float size = radius * (lethal ? Random.Range(0.28f,0.48f) : Random.Range(0.10f,0.18f));
+                float size = radius * (lethal ? Random.Range(0.16f,0.28f) : Random.Range(0.06f,0.10f));
+                // Small chips on impact, larger shell pieces only on defeat.
                 var mesh = MakeShell(size, radius);
                 go.AddComponent<MeshFilter>().sharedMesh = mesh;
                 var renderer = go.AddComponent<MeshRenderer>();
@@ -54,6 +58,7 @@ public class WaxShardBurst : MonoBehaviour
                 renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 renderer.receiveShadows = false;
                 Vector3 velocity = direction * launchSpeed * Random.Range(0.65f,1.1f) + Vector3.up * Random.Range(1f,2f);
+                if(smallMonster) velocity*=1.25f;
                 go.AddComponent<WaxShardPiece>().Begin(velocity,Random.insideUnitSphere*360f,
                     chipLifetime*(lethal ? 1.5f : 1f), materials, mesh, bounds.min.y);
             }
@@ -88,6 +93,9 @@ public class WaxShardBurst : MonoBehaviour
             inside.AddRange(new[]{sides+1,d,c,a,c,b,b,c,d});
         }
         var mesh=new Mesh { name="CurvedWaxShell", vertices=vertices, subMeshCount=2 };
+        var shardUVs=new System.Collections.Generic.List<Vector4>(vertices.Length);
+        for(int i=0;i<vertices.Length;i++)shardUVs.Add(new Vector4(0,0,10,1));
+        mesh.SetUVs(0,shardUVs);
         mesh.SetTriangles(outside,0); mesh.SetTriangles(inside,1);
         mesh.RecalculateNormals(); mesh.RecalculateBounds();
         return mesh;

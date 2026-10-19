@@ -5,6 +5,9 @@ public class EnemySpawner : MonoBehaviour
 {
     public GameObject enemyPrefab;
     public GameObject bossPrefab;
+    public GameObject finalBossPrefab;
+    public GameObject crystalBossPrefab;
+    public GameObject waxBossPrefab;
     public Transform player;
     public float spawnRadius = 15f;
     public float initialInterval = 1.4f;
@@ -119,6 +122,7 @@ public class EnemySpawner : MonoBehaviour
         if(!TryFindSpawnPoint(out bossArrivalPosition,bossClearRadius))return;
         if(bossWarningSeconds<=0){SpawnConfiguredBoss();bossSpawned=true;return;}
         bossWarningRemaining=bossWarningSeconds;
+        if(GameAudio.Instance!=null)GameAudio.Instance.BeginBossEntrance(bossWarningSeconds);
         bossWarning=BossArrivalWarning.Create(bossArrivalPosition,bossClearRadius);
         bossWarning.SetRemaining(bossWarningRemaining);
     }
@@ -139,6 +143,7 @@ public class EnemySpawner : MonoBehaviour
     }
     void CancelBossWarning()
     {
+        if(GameAudio.Instance!=null)GameAudio.Instance.CancelBossEntrance();
         if(bossWarning!=null)bossWarning.Dismiss();
         bossWarning=null;bossWarningRemaining=0;
     }
@@ -195,6 +200,18 @@ public class EnemySpawner : MonoBehaviour
     public float CurrentSpawnInterval => stageIndex==0?1.6f:Mathf.Max(.1f, Mathf.Max(minInterval, initialInterval - elapsed / 60f * intervalDecayPerMinute));
     public int CurrentAliveCap => stageIndex==0?24:Mathf.Min(maxAliveEnemies, 18 + Mathf.FloorToInt(elapsed / 60f) * 6);
     public int CurrentWaveCount => stageIndex==0?2:Mathf.Min(3, enemiesPerSpawn + Mathf.FloorToInt(elapsed / 90f));
+
+    public string ObjectiveStatus
+    {
+        get
+        {
+            if (bossSpawned) return "보스를 격파하세요";
+            if (BossWarningActive) return $"보스 등장 {Mathf.CeilToInt(bossWarningRemaining)}초 · 붉은 원 피하기";
+            if (killCount < killsToSpawnBoss) return $"몬스터 처치  {killCount} / {killsToSpawnBoss}";
+            float remaining=Mathf.Max(0,bossEarliestSeconds-elapsed);
+            return remaining>0 ? $"처치 완료 · 보스 등장까지 {Mathf.CeilToInt(remaining)}초" : "보스 등장 준비 중";
+        }
+    }
 
     public int KillCount { get { return killCount; } }
 
@@ -287,8 +304,35 @@ public class EnemySpawner : MonoBehaviour
 
     void SpawnConfiguredBoss()
     {
-        var boss=Instantiate(bossPrefab,bossArrivalPosition,Quaternion.identity).GetComponent<Enemy>();
-        if(boss!=null)ApplyStageDifficulty(boss);
+        var selected=stageIndex==2 && waxBossPrefab!=null?waxBossPrefab:
+            stageIndex==3 && crystalBossPrefab!=null?crystalBossPrefab:
+            stageIndex==4 && finalBossPrefab!=null?finalBossPrefab:bossPrefab;
+        var boss=Instantiate(selected,bossArrivalPosition,Quaternion.identity).GetComponent<Enemy>();
+        if(boss!=null)
+        {
+            ApplyStageDifficulty(boss);
+            var stageAttack=boss.GetComponent<BossAttacks>();
+            if(stageAttack!=null)
+            {
+                stageAttack.stageVariant=stageIndex;
+                if(stageIndex==1){stageAttack.chargeWindUp=1.25f;stageAttack.chargeRecover=1.5f;}
+                if(stageIndex==2){stageAttack.slamWindUp=1.1f;stageAttack.slamRecover=.55f;}
+            }
+            if(selected==crystalBossPrefab || selected==finalBossPrefab)
+            {
+                var attacks=boss.GetComponent<BossAttacks>();
+                if(attacks!=null)
+                {
+                    attacks.stageVariant=stageIndex;
+                    if(selected==crystalBossPrefab)
+                    {
+                        attacks.windUpColor=new Color(.65f,.35f,1);
+                        attacks.strikeColor=new Color(.35f,.9f,1);
+                    }
+                }
+            }
+            else if(stageIndex>=3)boss.gameObject.AddComponent<LateStageBossLook>().Configure(stageIndex);
+        }
     }
 
     void ApplyStageDifficulty(Enemy enemy)

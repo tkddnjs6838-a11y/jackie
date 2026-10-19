@@ -43,7 +43,7 @@ public static class AugmentChoiceChecks
             var second=CharacterUpgradePickup.Spawn(growth.transform.position,CharacterGrowth.Kind.Power);pickups.Add(second.gameObject);
             yield return null;Check(second!=null,"nearby second crate waits during selection");
             Check(!choices.Choose(-1) && !choices.Choose(3) && choices.Choosing,"invalid index leaves selection intact");
-            foreach(var kind in choices.Offered)Check(growth.ChoiceDescription(kind).Contains("→"),kind+" shows before and after values");
+            foreach(var kind in choices.Offered)Check(growth.DescribeChoice(kind).value.Contains("→"),kind+" shows before and after values");
             var font=Resources.Load<Font>("UI/AugmentKorean");Check(font!=null && font.HasCharacter('증') && font.HasCharacter('혈'),"bundled Korean font supports choice labels");
             // Render the actual overlay with its own camera for a deterministic visual check.
             var canvas=choices.ChoicePanel.GetComponent<Canvas>();var cameraObject=new GameObject("ChoiceCapture",typeof(Camera));var camera=cameraObject.GetComponent<Camera>();

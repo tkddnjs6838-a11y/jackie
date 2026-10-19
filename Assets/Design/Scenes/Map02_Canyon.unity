@@ -20,9 +20,9 @@ RenderSettings:
   m_FogDensity: 0.01
   m_LinearFogStart: 55
   m_LinearFogEnd: 170
-  m_AmbientSkyColor: {r: 0.7386667, g: 0.59466666, b: 0.44533333, a: 0.8}
-  m_AmbientEquatorColor: {r: 0.61176467, g: 0.5454902, b: 0.44862744, a: 0.65}
-  m_AmbientGroundColor: {r: 0.28235295, g: 0.2517647, b: 0.20705883, a: 0.3}
+  m_AmbientSkyColor: {r: 0.8900196, g: 0.74919605, b: 0.60315686, a: 0.95}
+  m_AmbientEquatorColor: {r: 0.7529412, g: 0.6713726, b: 0.55215687, a: 0.8}
+  m_AmbientGroundColor: {r: 0.42352942, g: 0.37764704, b: 0.31058824, a: 0.45}
   m_AmbientIntensity: 1
   m_AmbientMode: 1
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
@@ -3298,7 +3298,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 429133452}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.19134171, y: 0.8001032, z: -0.3314136, w: 0.46193972}
+  m_LocalRotation: {x: 0.4768585, y: -0.2604189, z: 0.15035291, w: 0.8259431}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -3316,7 +3316,7 @@ Light:
   serializedVersion: 12
   m_Type: 1
   m_Color: {r: 1, g: 0.874, b: 0.688, a: 1}
-  m_Intensity: 1.7
+  m_Intensity: 1.45
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -5570,6 +5570,7 @@ GameObject:
   - component: {fileID: 826749686}
   - component: {fileID: 826749688}
   - component: {fileID: 826749687}
+  - component: {fileID: 826749689}
   m_Layer: 0
   m_Name: Map02_Canyon
   m_TagString: Untagged
@@ -5641,6 +5642,56 @@ MonoBehaviour:
   m_MinRegionArea: 2
   m_NavMeshData: {fileID: 23800000, guid: ee23c010d6e8d446e96f6147056af0f5, type: 2}
   m_BuildHeightMesh: 0
+--- !u!114 &826749689
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 826749685}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 945e397f1f7dd42498e6cf9762bc7112, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MapMood
+  bright:
+    sunColor: {r: 1, g: 0.874, b: 0.688, a: 1}
+    sunIntensity: 1.45
+    sunEuler: {x: 60, y: -35, z: 0}
+    ambientSky: {r: 0.8900196, g: 0.74919605, b: 0.60315686, a: 0.95}
+    ambientEquator: {r: 0.7529412, g: 0.6713726, b: 0.55215687, a: 0.8}
+    ambientGround: {r: 0.42352942, g: 0.37764704, b: 0.31058824, a: 0.45}
+    fogColor: {r: 0.9411765, g: 0.8392157, b: 0.6901961, a: 1}
+    fogStart: 55
+    fogEnd: 170
+    skyZenith: {r: 0.7733334, g: 0.59333336, b: 0.40666667, a: 0.85}
+    skyHorizon: {r: 0.9411765, g: 0.8392157, b: 0.6901961, a: 1}
+    skyGround: {r: 0.8658824, g: 0.77207845, b: 0.63498044, a: 0.92}
+    cloudColor: {r: 0.9852941, g: 0.95980394, b: 0.922549, a: 1}
+    cloudShade: {r: 0.9254902, g: 0.76862746, b: 0.58431375, a: 1}
+    waterBase: {r: 0, g: 0, b: 0, a: 0}
+    waterDeep: {r: 0, g: 0, b: 0, a: 0}
+    waterSky: {r: 0.95490193, g: 0.84901965, b: 0.7392157, a: 1}
+  dark:
+    sunColor: {r: 1, g: 0.72, b: 0.55, a: 1}
+    sunIntensity: 1.25
+    sunEuler: {x: 32, y: -35, z: 0}
+    ambientSky: {r: 0.16, g: 0.15, b: 0.32, a: 1}
+    ambientEquator: {r: 0.21205573, g: 0.12465136, b: 0.117109895, a: 0.517}
+    ambientGround: {r: 0.04, g: 0.035, b: 0.06, a: 1}
+    fogColor: {r: 0.21205573, g: 0.12465136, b: 0.117109895, a: 0.517}
+    fogStart: 25
+    fogEnd: 120
+    skyZenith: {r: 0.15317647, g: 0.12336471, b: 0.18061177, a: 1}
+    skyHorizon: {r: 0.734125, g: 0.38155, b: 0.2614, a: 0.85}
+    skyGround: {r: 0.21205573, g: 0.12465136, b: 0.117109895, a: 0.517}
+    cloudColor: {r: 0.45606366, g: 0.2635029, b: 0.23866314, a: 1.02575}
+    cloudShade: {r: 0.21444705, g: 0.1727106, b: 0.2528565, a: 1.4}
+    waterBase: {r: 0, g: 0, b: 0, a: 0}
+    waterDeep: {r: 0, g: 0, b: 0, a: 0}
+    waterSky: {r: 0.5138875, g: 0.26708502, b: 0.18298, a: 0.595}
+  sun: {fileID: 429133454}
+  water: {fileID: 0}
 --- !u!1001 &843173116
 PrefabInstance:
   m_ObjectHideFlags: 0

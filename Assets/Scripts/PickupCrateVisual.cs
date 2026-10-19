@@ -16,7 +16,7 @@ public sealed class PickupCrateVisual:MonoBehaviour
         mesh=new Mesh{name="PickupCrateMesh"};
         mesh.vertices=new[]{new Vector3(-.5f,-.5f,-.5f),new Vector3(.5f,-.5f,-.5f),new Vector3(.5f,.5f,-.5f),new Vector3(-.5f,.5f,-.5f),new Vector3(-.5f,-.5f,.5f),new Vector3(.5f,-.5f,.5f),new Vector3(.5f,.5f,.5f),new Vector3(-.5f,.5f,.5f)};
         mesh.triangles=new[]{0,2,1,0,3,2,4,5,6,4,6,7,0,4,7,0,7,3,1,2,6,1,6,5,3,7,6,3,6,2,0,1,5,0,5,4};mesh.RecalculateNormals();
-        Color body=category==Category.Weapon?new Color(.48f,.25f,.06f):category==Category.Growth?new Color(.06f,.32f,.15f):new Color(.32f,.08f,.5f);
+        Color body=category==Category.Weapon?new Color(.48f,.25f,.06f):category==Category.Growth?new Color(.06f,.32f,.15f):new Color(accent.r*.3f,accent.g*.3f,accent.b*.3f);
         var size=category==Category.Weapon?new Vector3(.75f,.3f,.42f):new Vector3(.48f,.48f,.48f);
         Part("Body",Vector3.zero,size,body);
         Part("Lid",new Vector3(0,size.y*.5f,0),new Vector3(size.x+.025f,.055f,size.z+.025f),accent);

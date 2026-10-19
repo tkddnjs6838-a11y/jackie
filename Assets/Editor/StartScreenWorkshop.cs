@@ -39,7 +39,7 @@ public static class StartScreenWorkshop
         var guide=new GameObject("ControlGuide",typeof(RectTransform),typeof(Image));guide.transform.SetParent(root.transform,false);
         var rect=guide.GetComponent<RectTransform>();rect.anchorMin=rect.anchorMax=rect.pivot=new Vector2(.5f,.5f);rect.anchoredPosition=new Vector2(0,-205);rect.sizeDelta=new Vector2(660,140);
         guide.GetComponent<Image>().color=new Color(.025f,.035f,.055f,.86f);guide.GetComponent<Image>().raycastTarget=false;
-        TextAt(guide.transform,"Controls","이동 WASD  ·  공격 좌클릭  ·  회피 Space\n강공격 우클릭  ·  마무리 콤보 좌 → 좌 → 우\n총 발사 좌클릭  ·  재장전 R  ·  보유 증강 Tab",font,22,Vector2.zero,new Vector2(630,120));
+        TextAt(guide.transform,"Controls","이동 WASD  ·  공격 좌클릭  ·  회피 Space\n총 발사 좌클릭  ·  재장전 R  ·  보유 증강 Tab",font,22,Vector2.zero,new Vector2(630,120));
         view.testModeNotice=TextAt(root.transform,"TestModeNotice","총 테스트  3 샷건 · 4 기관총 · 5 레이저",font,20,new Vector2(0,-295),new Vector2(660,42)).gameObject;
         view.testModeNotice.SetActive(false);
         // No persistent scene callbacks are stored in the design asset.

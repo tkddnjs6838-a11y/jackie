@@ -6,6 +6,7 @@ public sealed class GunPickup:MonoBehaviour
     public PlayerWeapons.Kind kind;
     float age,baseY;
     PlayerWeapons player;
+    bool fullNoticeShown;
     void OnEnable()=>ActiveCount++;
     void OnDisable()=>ActiveCount--;
     void Start(){baseY=transform.position.y;player=FindFirstObjectByType<PlayerWeapons>();}
@@ -15,7 +16,17 @@ public sealed class GunPickup:MonoBehaviour
         if(age>35){Destroy(gameObject);return;}
         transform.position=new Vector3(transform.position.x,baseY+Mathf.Sin(age*2.5f)*.08f,transform.position.z);transform.Rotate(0,45*Time.deltaTime,0);
         if(player==null)return;var d=player.transform.position-transform.position;d.y=0;
-        if(d.sqrMagnitude<1.7f && MapNavigation.CanCollect(transform.position,player.transform.position) && player.CollectGun(kind)){GameAudio.Play(GameAudio.Sfx.Pickup);Destroy(gameObject);}
+        if(d.sqrMagnitude>2.25f)fullNoticeShown=false;
+        if(d.sqrMagnitude>=1.7f || !MapNavigation.CanCollect(transform.position,player.transform.position))return;
+        if(player.CollectGun(kind)){GameAudio.Play(GameAudio.Sfx.Pickup);Destroy(gameObject);return;}
+        var combat=player.GetComponent<PlayerGunCombat>();
+        if(!fullNoticeShown && player.Owns(kind) && combat!=null && combat.ReserveFull(kind))
+        {
+            fullNoticeShown=true;
+            var notice=player.GetComponent<AmmoFullNotice>();
+            if(notice==null)notice=player.gameObject.AddComponent<AmmoFullNotice>();
+            notice.Show();
+        }
     }
     public static bool Spawn(Vector3 at,PlayerWeapons.Kind kind)
     {

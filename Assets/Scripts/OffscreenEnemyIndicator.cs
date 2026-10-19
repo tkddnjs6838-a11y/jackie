@@ -17,6 +17,7 @@ public class OffscreenEnemyIndicator : MonoBehaviour
 
     void Awake()
     {
+        arrowSize=20f;arrowColor=new Color(1f,.76f,.23f,.85f);
         viewCamera = Camera.main;
         arrowTexture = BuildArrowTexture(32);
     }
@@ -35,6 +36,7 @@ public class OffscreenEnemyIndicator : MonoBehaviour
 
     void OnGUI()
     {
+        if(RunStats.Instance==null || !RunStats.Instance.Running || Time.timeScale<=0)return;
         if (viewCamera == null) viewCamera = Camera.main;
         if (viewCamera == null || arrowTexture == null) return;
 

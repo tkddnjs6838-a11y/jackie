@@ -45,6 +45,8 @@ public class PowerUpEffects : MonoBehaviour
     void Awake()
     {
         Instance = this;
+        if(GetComponent<TimedEffectHud>()==null)gameObject.AddComponent<TimedEffectHud>();
+        if(GetComponent<TimedEffectPlayerVisual>()==null)gameObject.AddComponent<TimedEffectPlayerVisual>();
         EnemySpeedScale = 1f;       // static: it would survive a scene reload otherwise
     }
 
@@ -79,6 +81,22 @@ public class PowerUpEffects : MonoBehaviour
         }
     }
 
+    public static string DisplayName(Kind kind)
+    {
+        switch(kind){case Kind.Rage:return "공격력 강화";case Kind.Frenzy:return "공격속도 강화";case Kind.Shield:return "보호막";default:return "적 둔화";}
+    }
+    public string Description(Kind kind)
+    {
+        switch(kind)
+        {
+            case Kind.Rage:return "공격력 ×"+rageDamageMultiplier.ToString("0.#");
+            case Kind.Frenzy:return "공격 간격 "+(frenzyCooldownMultiplier*100).ToString("0")+"%";
+            case Kind.Shield:return "받는 피해 무효";
+            default:return "적 이동속도 "+(Mathf.Clamp01(slowEnemyScale)*100).ToString("0")+"%";
+        }
+    }
+    public int ActivationVersion {get;private set;}
+
     // Temporary multipliers never modify the permanent upgrade stats.
     public float DamageMultiplier => Active && ActiveKind == Kind.Rage ? rageDamageMultiplier : 1f;
     public float CooldownMultiplier => Active && ActiveKind == Kind.Frenzy ? frenzyCooldownMultiplier : 1f;
@@ -89,6 +107,7 @@ public class PowerUpEffects : MonoBehaviour
         if (!isActiveAndEnabled || kind<Kind.Rage || kind>Kind.Slow) return;
         Restore();
         ActiveKind = kind;
+        ActivationVersion++;
         Remaining = Mathf.Max(0f, DurationOf(kind));
         if (kind == Kind.Slow && Active) EnemySpeedScale = Mathf.Clamp01(slowEnemyScale);
     }
@@ -103,7 +122,7 @@ public class PowerUpEffects : MonoBehaviour
 
     void OnDisable() { Restore(); }
 
-    float DurationOf(Kind kind)
+    public float DurationOf(Kind kind)
     {
         switch (kind)
         {

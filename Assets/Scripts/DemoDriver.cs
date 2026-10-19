@@ -43,7 +43,6 @@ public class DemoDriver : MonoBehaviour
     private Vector3 heading = Vector3.forward;
     private float dashTimer;
     private float softenTimer;
-    private int comboStep;
     private PlayerHealth health;
 
     void Awake()
@@ -52,11 +51,9 @@ public class DemoDriver : MonoBehaviour
         attackComp = GetComponent<PlayerAutoAttack>();
         dash = GetComponent<PlayerDash>();
 
-        // Swing takes (bool strong, bool finisher) since the click-combo was added, so the
-        // signature has to be named explicitly or the lookup silently binds nothing
         swingMethod = typeof(PlayerAutoAttack).GetMethod("Swing",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
-            null, new System.Type[] { typeof(bool), typeof(bool) }, null);
+            null, System.Type.EmptyTypes, null);
         cooldownField = typeof(PlayerAutoAttack).GetField("manualCooldownTimer",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         dashMethod = typeof(PlayerDash).GetMethod("StartDash",
@@ -153,10 +150,7 @@ public class DemoDriver : MonoBehaviour
         float cd = (float)cooldownField.GetValue(attackComp);
         if (cd > 0f) return;
 
-        // plays the intended pattern: two light swings, then the strong finisher
-        comboStep++;
-        bool strong = comboStep % 3 == 0;
-        swingMethod.Invoke(attackComp, new object[] { strong, strong });
+        swingMethod.Invoke(attackComp, null);
     }
 
     void DriveDash()

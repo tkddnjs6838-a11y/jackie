@@ -16,13 +16,14 @@ public class PlayerController : MonoBehaviour
 
     private CharacterController controller;
     private float verticalVelocity;
-    private float pitch = 10f;
+    private float pitch = 18f;
     private bool hasSpeedParameter;
     private PlayerDash dash;
 
     void Awake()
     {
         controller = GetComponent<CharacterController>();
+        if(cameraTransform!=null && cameraTransform.GetComponent<CombatCamera>()==null)cameraTransform.gameObject.AddComponent<CombatCamera>();
         if(GetComponent<PlayerGroundSafety>()==null)gameObject.AddComponent<PlayerGroundSafety>();
         dash = GetComponent<PlayerDash>();
         if(GetComponent<MobileControls>()==null)gameObject.AddComponent<MobileControls>();

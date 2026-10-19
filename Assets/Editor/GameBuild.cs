@@ -16,7 +16,7 @@ public static class GameBuild
         File.Delete(request);if(request.Contains("ios"))BuildIOS();else BuildMac();
     }
     [MenuItem("Tools/Build/Mac Game")]
-    public static void BuildMac()=>Build(BuildTarget.StandaloneOSX,"output/builds/WakuballSmash.app");
+    public static void BuildMac()=>Build(BuildTarget.StandaloneOSX,"output/builds/jackie.app");
     [MenuItem("Tools/Build/iOS Xcode Project")]
     public static void BuildIOS()
     {
@@ -27,6 +27,17 @@ public static class GameBuild
     }
     static void Build(BuildTarget target,string destination)
     {
+        // URP resource stripping must initialize after the target platform has changed.
+        // Queue the build across the domain reload instead of building with the old target's resources.
+        if(EditorUserBuildSettings.activeBuildTarget!=target)
+        {
+            Directory.CreateDirectory("output");
+            string request=target==BuildTarget.iOS?"output/build-ios.request":"output/build-game.request";
+            File.WriteAllText(request,"build after platform switch");
+            if(!EditorUserBuildSettings.SwitchActiveBuildTarget(BuildPipeline.GetBuildTargetGroup(target),target))
+            { File.Delete(request);throw new InvalidOperationException("Could not switch build target to "+target); }
+            return;
+        }
         Directory.CreateDirectory("output/builds");
         string result="output/builds/"+target+"-result.txt";
         try

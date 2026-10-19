@@ -20,9 +20,9 @@ RenderSettings:
   m_FogDensity: 0.01
   m_LinearFogStart: 55
   m_LinearFogEnd: 170
-  m_AmbientSkyColor: {r: 0.5306667, g: 0.50133336, b: 0.7173333, a: 0.8}
-  m_AmbientEquatorColor: {r: 0.5454902, g: 0.52254903, b: 0.6168627, a: 0.65}
-  m_AmbientGroundColor: {r: 0.2517647, g: 0.24117649, b: 0.2847059, a: 0.3}
+  m_AmbientSkyColor: {r: 0.68660784, g: 0.6579216, b: 0.86915684, a: 0.95}
+  m_AmbientEquatorColor: {r: 0.6713726, g: 0.6431373, b: 0.7592157, a: 0.8}
+  m_AmbientGroundColor: {r: 0.37764704, g: 0.3617647, b: 0.42705882, a: 0.45}
   m_AmbientIntensity: 1
   m_AmbientMode: 1
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
@@ -746,7 +746,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 178882850}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.19134171, y: 0.8001032, z: -0.3314136, w: 0.46193972}
+  m_LocalRotation: {x: 0.4768585, y: -0.2604189, z: 0.15035291, w: 0.8259431}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -764,7 +764,7 @@ Light:
   serializedVersion: 12
   m_Type: 1
   m_Color: {r: 0.95, g: 0.874, b: 0.86, a: 1}
-  m_Intensity: 1.7
+  m_Intensity: 1.45
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -2960,6 +2960,7 @@ GameObject:
   - component: {fileID: 1104904308}
   - component: {fileID: 1104904310}
   - component: {fileID: 1104904309}
+  - component: {fileID: 1104904311}
   m_Layer: 0
   m_Name: Map04_CrystalPlateau
   m_TagString: Untagged
@@ -3031,6 +3032,56 @@ MonoBehaviour:
   m_MinRegionArea: 2
   m_NavMeshData: {fileID: 23800000, guid: 6c9bb00d227624a1ea5eed7ab48eed87, type: 2}
   m_BuildHeightMesh: 0
+--- !u!114 &1104904311
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1104904307}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 945e397f1f7dd42498e6cf9762bc7112, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MapMood
+  bright:
+    sunColor: {r: 0.95, g: 0.874, b: 0.86, a: 1}
+    sunIntensity: 1.45
+    sunEuler: {x: 60, y: -35, z: 0}
+    ambientSky: {r: 0.68660784, g: 0.6579216, b: 0.86915684, a: 0.95}
+    ambientEquator: {r: 0.6713726, g: 0.6431373, b: 0.7592157, a: 0.8}
+    ambientGround: {r: 0.37764704, g: 0.3617647, b: 0.42705882, a: 0.45}
+    fogColor: {r: 0.8392157, g: 0.8039216, b: 0.9490196, a: 1}
+    fogStart: 55
+    fogEnd: 170
+    skyZenith: {r: 0.5133334, g: 0.4766667, b: 0.74666667, a: 0.85}
+    skyHorizon: {r: 0.8392157, g: 0.8039216, b: 0.9490196, a: 1}
+    skyGround: {r: 0.77207845, g: 0.7396079, b: 0.8730981, a: 0.92}
+    cloudColor: {r: 0.95980394, g: 0.9509804, b: 0.9872549, a: 1}
+    cloudShade: {r: 0.72156864, g: 0.68235296, b: 0.9137255, a: 1}
+    waterBase: {r: 0, g: 0, b: 0, a: 0}
+    waterDeep: {r: 0, g: 0, b: 0, a: 0}
+    waterSky: {r: 0.8019608, g: 0.78039217, b: 0.93921566, a: 1}
+  dark:
+    sunColor: {r: 1, g: 0.72, b: 0.55, a: 1}
+    sunIntensity: 1.25
+    sunEuler: {x: 32, y: -35, z: 0}
+    ambientSky: {r: 0.16, g: 0.15, b: 0.32, a: 1}
+    ambientEquator: {r: 0.19708279, g: 0.118226066, b: 0.1402099, a: 0.517}
+    ambientGround: {r: 0.04, g: 0.035, b: 0.06, a: 1}
+    fogColor: {r: 0.19708279, g: 0.118226066, b: 0.1402099, a: 0.517}
+    fogStart: 25
+    fogEnd: 120
+    skyZenith: {r: 0.1164706, g: 0.10689413, b: 0.22861177, a: 1}
+    skyHorizon: {r: 0.721125, g: 0.37705, b: 0.2944, a: 0.85}
+    skyGround: {r: 0.19708279, g: 0.118226066, b: 0.1402099, a: 0.517}
+    cloudColor: {r: 0.42742157, g: 0.2513107, b: 0.28403813, a: 1.02575}
+    cloudShade: {r: 0.16305883, g: 0.14965178, b: 0.32005647, a: 1.4}
+    waterBase: {r: 0, g: 0, b: 0, a: 0}
+    waterDeep: {r: 0, g: 0, b: 0, a: 0}
+    waterSky: {r: 0.5047875, g: 0.263935, b: 0.20608, a: 0.595}
+  sun: {fileID: 178882852}
+  water: {fileID: 0}
 --- !u!1 &1121859624
 GameObject:
   m_ObjectHideFlags: 0

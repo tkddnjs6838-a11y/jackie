@@ -6,26 +6,9 @@ public class PlayerAutoAttack : MonoBehaviour
     public float manualAttackRange = 3f;
     public float manualAttackCooldown = 0.5f;
 
-    [Header("Mouse Combo")]
-    public float comboWindow = 0.8f;
-    // How long a click is remembered when it lands during the cooldown. Without this the
-    // press is read only on frames the attack is already available, so every click that
-    // arrives a fraction early is thrown away and the attack feels like it ignores you.
+    [Header("Basic attack")]
     public float inputBufferSeconds = 0.22f;
-    public float strongDamageMultiplier = 1.35f;
-    public float strongRangeMultiplier = 1.12f;
-    // The strong swing has to be worse than the light one at sustained damage, or there is no
-    // reason to press left click. That cost is paid in damage rather than a long cooldown:
-    // at 1.9x the swing animation ended 0.45s before the attack was available again, and
-    // that dead gap felt like the game stuttering.
-    public float strongCooldownMultiplier = 1.5f;
-    public float strongAngleBonus = 30f;
-    public float finisherDamageMultiplier = 2.4f;
-    public float finisherRangeMultiplier = 1.3f;
-    public float finisherAngle = 220f;
     public float manualAttackDamage = 30f;
-    // hold the right button to keep swinging at the cooldown rate
-    public bool holdToAttack = true;
     // health returned per connecting swing, granted by an upgrade
     public float lifestealPerHit = 0f;
     // Hard ceiling on healing per second. Lifesteal is per swing and attack speed is
@@ -93,10 +76,7 @@ public class PlayerAutoAttack : MonoBehaviour
     private readonly SwordBodyPose swordBodyPose = new SwordBodyPose();
     private float lifestealWindowStart;
 
-    private int comboStep;
-    private float comboTimer;
     private float bufferTimer;
-    private bool bufferedStrong;
     private float lifestealSpentThisSecond;
 
     void Start()
@@ -144,6 +124,8 @@ public class PlayerAutoAttack : MonoBehaviour
         StopAllCoroutines();
     }
 
+    public void EndImpactSlowdown() { RestoreHitStop(); }
+
     void RestoreHitStop()
     {
         if (!ownsHitStop) return;
@@ -172,10 +154,8 @@ public class PlayerAutoAttack : MonoBehaviour
         UpdateAttackLayer();
 
         manualCooldownTimer -= Time.deltaTime;
-        comboTimer -= Time.deltaTime;
-        if (comboTimer <= 0f) comboStep = 0;
-
-        if(weapons!=null && weapons.IsGun){bufferTimer=0;comboStep=0;return;}
+        if(weapons!=null && weapons.IsGun){bufferTimer=0;return;}
+        if (weapons != null && weapons.TryApplyPendingEquip()) { bufferTimer=0f; return; }
         var mouse = Mouse.current;
         if (!MobileControls.Enabled && mouse == null) return;
 
@@ -184,38 +164,11 @@ public class PlayerAutoAttack : MonoBehaviour
         // Read new clicks after aging the buffer so a slow frame cannot discard them.
         if (MobileControls.Enabled ? MobileControls.Firing : mouse.leftButton.wasPressedThisFrame)
         {
-            bufferedStrong = false;
-            bufferTimer = inputBufferSeconds;
-        }
-        else if (!MobileControls.Enabled && mouse.rightButton.wasPressedThisFrame)
-        {
-            bufferedStrong = true;
-            bufferTimer = inputBufferSeconds;
-        }
-
-        // Preserve an explicitly buffered click over a held right button.
-        if (bufferTimer <= 0f && holdToAttack && !MobileControls.Enabled && mouse.rightButton.isPressed)
-        {
-            bufferedStrong = true;
             bufferTimer = inputBufferSeconds;
         }
         if (manualCooldownTimer > 0f || bufferTimer <= 0f) return;
-
         bufferTimer = 0f;
-
-        if (!bufferedStrong)
-        {
-            comboStep = comboStep == 1 ? 2 : 1;
-            comboTimer = comboWindow;
-            Swing(false, false);
-        }
-        else
-        {
-            bool finisher = comboStep == 2 && comboTimer > 0f;
-            comboStep = 0;
-            comboTimer = 0f;
-            Swing(true, finisher);
-        }
+        Swing();
     }
 
     /// <summary>
@@ -237,9 +190,9 @@ public class PlayerAutoAttack : MonoBehaviour
         return granted;
     }
 
-    void Swing(bool strong, bool finisher)
+    void Swing()
     {
-        float cooldownScale = (strong ? strongCooldownMultiplier : 1f) * (weapons != null ? weapons.CooldownScale : 1f);
+        float cooldownScale = weapons != null ? weapons.CooldownScale : 1f;
         var effects = GetComponent<PowerUpEffects>();
         manualCooldownTimer = manualAttackCooldown * cooldownScale * (effects != null ? effects.CooldownMultiplier : 1f) * (GetComponent<CharacterGrowth>()?.CooldownMultiplier ?? 1f);
         if (RunStats.Instance != null) RunStats.Instance.RegisterClick();
@@ -247,24 +200,10 @@ public class PlayerAutoAttack : MonoBehaviour
 
         float damage = manualAttackDamage * (GetComponent<CharacterGrowth>()?.DamageMultiplier ?? 1f) * (effects != null ? effects.DamageMultiplier : 1f);
         damage *= weapons != null ? weapons.DamageScale : 1f;
+        damage *= GetComponent<CharacterGrowth>()?.ConsumeDashStrike() ?? 1f;
         float range = manualAttackRange * (weapons != null ? weapons.RangeScale : 1f);
         float angle = Mathf.Min(300f, attackAngle + (weapons != null ? weapons.ArcBonus : 0f));
         float feedback = 1f;
-
-        if (finisher)
-        {
-            damage *= finisherDamageMultiplier;
-            range *= finisherRangeMultiplier;
-            angle = Mathf.Min(300f, finisherAngle + (weapons != null ? weapons.ArcBonus : 0f));
-            feedback = 1.75f;
-        }
-        else if (strong)
-        {
-            damage *= strongDamageMultiplier;
-            range *= strongRangeMultiplier;
-            angle = Mathf.Min(300f, angle + strongAngleBonus);
-            feedback = 1.3f;
-        }
 
         if (IsAxe) feedback *= 1.55f;
         float delay = PlayAttackMotion();
@@ -323,11 +262,18 @@ public class PlayerAutoAttack : MonoBehaviour
         if (RunStats.Instance != null) RunStats.Instance.RegisterHit();
         GameAudio.Play(IsAxe ? GameAudio.Sfx.AxeHit : GameAudio.Sfx.Hit);
 
+        bool burstTriggered=false;
         foreach (var target in targets)
         {
-            if (target == null) continue;
+            if (target == null || target.IsDying) continue;
             HitImpact.Spawn(ContactPoint(target), transform.forward, impactEffectSize * feedback);
+            MeleeImpactBurst.Spawn(ContactPoint(target), feedback);
             target.TakeDamage(damage, ContactPoint(target));
+            if(target.IsDying && !burstTriggered)
+            {
+                burstTriggered=true;
+                GetComponent<CharacterGrowth>()?.BurstOnMeleeKill(target.transform.position,damage);
+            }
         }
 
         if (lifestealPerHit > 0f)
@@ -395,6 +341,25 @@ public class PlayerAutoAttack : MonoBehaviour
         swingBone.localEulerAngles = startEuler;
     }
 
+    readonly RaycastHit[] strikeObstacles = new RaycastHit[64];
+    bool HasClearStrikePath(Collider target)
+    {
+        Vector3 origin = transform.position + Vector3.up * impactSourceHeight;
+        Vector3 delta = target.ClosestPoint(origin) - origin;
+        float distance = delta.magnitude;
+        if (distance < .01f) return true;
+        int count = Physics.RaycastNonAlloc(origin, delta / distance, strikeObstacles, distance,
+            ~(1 << 2), QueryTriggerInteraction.Ignore);
+        if (count == strikeObstacles.Length) return false;
+        for (int i=0; i<count; i++)
+        {
+            var blocker = strikeObstacles[i].collider;
+            if (blocker.transform.IsChildOf(transform) || blocker.GetComponentInParent<Enemy>() != null) continue;
+            return false;
+        }
+        return true;
+    }
+
     System.Collections.Generic.List<Enemy> FindTargetsInFront(float range, float angle)
     {
         var found = new System.Collections.Generic.List<Enemy>();
@@ -412,7 +377,7 @@ public class PlayerAutoAttack : MonoBehaviour
         foreach (var hit in hits)
         {
             Enemy enemy = hit.GetComponentInParent<Enemy>();
-            if (enemy == null || enemy.IsDying) continue;
+            if (enemy == null || enemy.IsDying || !HasClearStrikePath(hit)) continue;
 
             Vector3 toEnemy = enemy.transform.position - transform.position;
             toEnemy.y = 0f;

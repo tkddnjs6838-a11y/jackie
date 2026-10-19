@@ -29,6 +29,14 @@ public static class CombatRegressionChecks
         return go;
     }
 
+    static int BossCloneCount()
+    {
+        int count = 0;
+        foreach (var enemy in UnityEngine.Object.FindObjectsByType<Enemy>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            if (enemy.name == Prefix + "BossPrefab(Clone)") count++;
+        return count;
+    }
+
     [MenuItem("Tools/Validation/Run Combat Regression Checks")]
     public static void Run()
     {
@@ -38,6 +46,7 @@ public static class CombatRegressionChecks
             return;
         }
         float savedScale = Time.timeScale;
+        var savedRandom = UnityEngine.Random.state;
         var savedLock = Cursor.lockState;
         bool savedVisible = Cursor.visible;
         var stats = RunStats.Instance;
@@ -117,8 +126,16 @@ public static class CombatRegressionChecks
             checks.Add("legacy upgrade panel is hidden without changing game time");
 
             var spawner = New("Spawner").AddComponent<EnemySpawner>();
+            var liveOrigin = UnityEngine.Object.FindFirstObjectByType<PlayerHealth>();
+            Check(liveOrigin != null && MapNavigation.Current != null, "Boss retry check requires a loaded navigation map");
             spawner.player = New("SpawnOrigin").transform;
-            spawner.spawnRadius = 1f;
+            spawner.player.position = liveOrigin.transform.position;
+            spawner.spawnRadius = 15f;
+            // Reuse a known valid sequence, so only the obstacle changes between attempts.
+            UnityEngine.Random.InitState(7341);
+            var spawnRandom = UnityEngine.Random.state;
+            var spawnArgs = new object[] { Vector3.zero, spawner.bossClearRadius };
+            Check((bool)Call(spawner, "TryFindSpawnPoint", spawnArgs), "No valid baseline boss location on the loaded map");
             spawner.bossWarningSeconds = 0;
             spawner.bossPrefab = New("BossPrefab");
             spawner.bossPrefab.AddComponent<Enemy>().isBoss = true;
@@ -126,17 +143,46 @@ public static class CombatRegressionChecks
             Set(spawner, "elapsed", spawner.bossEarliestSeconds);
             var blocker = New("Blocker");
             blocker.AddComponent<BoxCollider>().size = Vector3.one * 100f;
-            // Terrain sampling places spawns near y=0, regardless of the test player's height.
-            blocker.transform.position = new Vector3(10000, 0, 10000);
+            blocker.transform.position = spawner.player.position;
             blocker.SetActive(true);
             Physics.SyncTransforms();
+            UnityEngine.Random.state = spawnRandom;
             Call(spawner, "TrySpawnBoss");
             Check(!Get<bool>(spawner, "bossSpawned"), "Failed boss spawn marked successful");
             blocker.SetActive(false);
             Physics.SyncTransforms();
+            UnityEngine.Random.state = spawnRandom;
             Call(spawner, "TrySpawnBoss");
             Check(Get<bool>(spawner, "bossSpawned"), "Boss spawn did not retry successfully");
-            checks.Add("blocked boss spawn retries successfully");
+            Check(BossCloneCount() == 1, "Successful retry must instantiate one boss");
+            Call(spawner, "TrySpawnBoss");
+            Check(BossCloneCount() == 1, "Successful retry spawned duplicate bosses");
+            checks.Add("blocked boss spawn retries on the real navigation map exactly once");
+
+            foreach (var spawnedBoss in UnityEngine.Object.FindObjectsByType<Enemy>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (spawnedBoss.name == Prefix + "BossPrefab(Clone)") UnityEngine.Object.DestroyImmediate(spawnedBoss.gameObject);
+            Set(spawner, "bossSpawned", false);
+            spawner.bossWarningSeconds = 3f;
+            UnityEngine.Random.state = spawnRandom;
+            Call(spawner, "TrySpawnBoss");
+            Check(spawner.BossWarningActive && BossCloneCount() == 0, "Warning must precede boss creation");
+            blocker.SetActive(true);
+            Physics.SyncTransforms();
+            Call(spawner, "TickBossWarning", 3f);
+            Check(!spawner.BossWarningActive && !Get<bool>(spawner, "bossSpawned") && BossCloneCount() == 0,
+                  "Blocked arrival must cancel without consuming the boss spawn");
+            blocker.SetActive(false);
+            Physics.SyncTransforms();
+            UnityEngine.Random.state = spawnRandom;
+            Call(spawner, "TrySpawnBoss");
+            Check(spawner.BossWarningActive, "Cancelled arrival did not restart warning");
+            Call(spawner, "TickBossWarning", 3f);
+            Check(Get<bool>(spawner, "bossSpawned") && !spawner.BossWarningActive && BossCloneCount() == 1,
+                  "Warning retry did not produce exactly one boss");
+            Call(spawner, "TrySpawnBoss");
+            Check(BossCloneCount() == 1 && !spawner.BossWarningActive, "Warning retry spawned duplicate bosses");
+            checks.Add("blocked warning cancels, restarts and creates one boss");
+            Debug.Log("BOSS RETRY PASS: blocked spawn retries once; blocked warning restarts; no duplicate bosses.");
 
             // Use a temporary mouse; the held-button check runs after the press frame is over.
             mouse = InputSystem.AddDevice<Mouse>();
@@ -145,18 +191,18 @@ public static class CombatRegressionChecks
             InputSystem.Update();
             attack.gameObject.SetActive(true);
             attack.useHitStop = false;
-            attack.holdToAttack = true;
-            Call(attack, "Update");
-            Check(Get<float>(attack, "manualCooldownTimer") > 0f, "Held right button did not attack");
-            attack.holdToAttack = false;
             Set(attack, "manualCooldownTimer", 0f);
             Call(attack, "Update");
-            Check(Get<float>(attack, "manualCooldownTimer") <= 0f, "Hold option off still attacks");
+            Check(Get<float>(attack, "manualCooldownTimer") <= 0f, "Right button still attacks");
+            InputSystem.QueueStateEvent(mouse, new MouseState().WithButton(MouseButton.Left));
+            InputSystem.Update();
+            Call(attack, "Update");
+            Check(Get<float>(attack, "manualCooldownTimer") > 0f, "Left button did not attack");
             Time.timeScale = 0f;
             Set(attack, "bufferTimer", 0.2f);
             Call(attack, "Update");
             Check(Get<float>(attack, "bufferTimer") == 0f, "Paused menu retained attack input");
-            checks.Add("held attack respects option and pause");
+            checks.Add("right attack removed; left attack and pause work");
 
             var buffObject = New("BuffPlayer");
             var buffAttack = buffObject.AddComponent<PlayerAutoAttack>();
@@ -363,6 +409,7 @@ public static class CombatRegressionChecks
             }
             PowerUpEffects.Instance = originalEffects;
             PowerUpEffects.EnemySpeedScale = originalSlow;
+            UnityEngine.Random.state = savedRandom;
             Time.timeScale = savedScale;
             Cursor.lockState = savedLock;
             Cursor.visible = savedVisible;

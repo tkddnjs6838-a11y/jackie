@@ -85,8 +85,11 @@ public class HitImpact : MonoBehaviour
         if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
     }
 
+    int bornFrame;
+    void Awake(){bornFrame=Time.frameCount;}
     void Update()
     {
+        if(Time.frameCount==bornFrame)return;
         timer += Time.unscaledDeltaTime;
         float t = Mathf.Clamp01(timer / lifetime);
 

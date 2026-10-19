@@ -104,7 +104,7 @@ public static class SceneFlowChecks
             var direction = nearest.transform.position-health.transform.position; direction.y = 0f;
             if (direction.sqrMagnitude > .001f) health.transform.rotation = Quaternion.LookRotation(direction);
         }
-        Call(health.GetComponent<PlayerAutoAttack>(), "Swing", false, false);
+        Call(health.GetComponent<PlayerAutoAttack>(), "Swing");
         foreach (var renderer in UnityEngine.Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None))
         {
             if (!renderer.enabled || renderer.name != "WaxSurfaceCracks") continue;
@@ -193,7 +193,7 @@ public static class SceneFlowChecks
                     target = obj.GetComponent<Enemy>();
                     target.externalMovement = true;
                     beforeHealth = target.CurrentHealth;
-                    Call(player.GetComponent<PlayerAutoAttack>(), "Swing", false, false);
+                    Call(player.GetComponent<PlayerAutoAttack>(), "Swing");
                     player.GetComponent<PlayerAutoAttack>().StartCoroutine(CaptureSwordFrames());
                     next = EditorApplication.timeSinceStartup + 1.5;
                     break;

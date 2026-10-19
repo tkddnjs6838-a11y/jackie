@@ -6,10 +6,10 @@ public static class SwordArmPose
 {
     public static void Apply(Animator animator, Transform root, Transform sword, Vector3 grip, float phase, bool attacking, bool axe = false, bool gun = false, float recoil = 0f, Vector3 gunDirection = default)
     {
-        if (animator == null || !animator.isHuman || sword == null) return;
-        var upper = animator.GetBoneTransform(HumanBodyBones.RightUpperArm);
-        var lower = animator.GetBoneTransform(HumanBodyBones.RightLowerArm);
-        var hand = animator.GetBoneTransform(HumanBodyBones.RightHand);
+        if (animator == null || sword == null) return;
+        var upper = ToyCharacterRig.Bone(animator,HumanBodyBones.RightUpperArm);
+        var lower = ToyCharacterRig.Bone(animator,HumanBodyBones.RightLowerArm);
+        var hand = ToyCharacterRig.Bone(animator,HumanBodyBones.RightHand);
         if (upper == null || lower == null || hand == null) return;
 
         var motion=axe ? AxeSwingMotion.Evaluate(attacking ? phase : 0f) : SwordSwingMotion.Evaluate(attacking ? phase : 0f);
@@ -17,21 +17,20 @@ public static class SwordArmPose
         float yaw=motion.yaw*Mathf.Deg2Rad, pitch=motion.pitch*Mathf.Deg2Rad;
         Vector3 blade=new Vector3(Mathf.Sin(yaw)*Mathf.Cos(pitch),Mathf.Sin(pitch),Mathf.Cos(yaw)*Mathf.Cos(pitch));
 
-        float a = Vector3.Distance(upper.position, lower.position);
-        float b = Vector3.Distance(lower.position, hand.position);
-        float reach = a + b;
-        if (a < 0.0001f || b < 0.0001f) return;
-        Vector3 target = upper.position + root.rotation * wrist * reach;
-        Vector3 direction = (target-upper.position).normalized;
-        float distance = Mathf.Clamp(Vector3.Distance(upper.position,target), Mathf.Abs(a-b)+0.0001f, reach*0.98f);
-        target = upper.position + direction*distance;
-        Vector3 pole = root.rotation * new Vector3(1f,-0.2f,-0.35f);
-        Vector3 bend = Vector3.ProjectOnPlane(pole,direction).normalized;
-        float along = (a*a-b*b+distance*distance)/(2f*distance);
-        float height = Mathf.Sqrt(Mathf.Max(0f,a*a-along*along));
-        Vector3 elbow = upper.position + direction*along + bend*height;
-        upper.rotation = Quaternion.FromToRotation(lower.position-upper.position,elbow-upper.position)*upper.rotation;
-        lower.rotation = Quaternion.FromToRotation(hand.position-lower.position,target-lower.position)*lower.rotation;
+        float reach = Vector3.Distance(upper.position, lower.position) + Vector3.Distance(lower.position, hand.position);
+        var chest=ToyCharacterRig.Bone(animator,HumanBodyBones.Chest);
+        bool toy=animator.GetComponent<ToyCharacterRig>()!=null && chest!=null;
+        Quaternion armFrame=toy && !gun ? chest.rotation : root.rotation;
+        if(toy && !gun && axe)
+        {
+            // Keep the short arm outside the rounded belly throughout torso rotation.
+            // Crossing the cut is carried by the blade, not by dragging the fist through the ribs.
+            wrist.x=Mathf.Max(.40f,wrist.x);
+            wrist.y=Mathf.Max(-.48f,wrist.y);
+            wrist.z=Mathf.Max(.78f,wrist.z);
+            wrist=Vector3.ClampMagnitude(wrist,.94f);
+        }
+        TwoBoneIK.Solve(upper, lower, hand, upper.position + armFrame * wrist * reach, armFrame * new Vector3(1f,-0.2f,-0.15f));
 
         Vector3 bladeWorld = root.rotation * blade.normalized;
         Vector3 face = Vector3.ProjectOnPlane(root.up,bladeWorld).normalized;
@@ -52,8 +51,11 @@ public static class SwordArmPose
 // This preserves walking animation and prevents twists accumulating while paused.
 public sealed class SwordBodyPose
 {
-    readonly Transform[] bones = new Transform[4];
-    readonly Quaternion[] original = new Quaternion[4];
+    static readonly HumanBodyBones[] Touched={HumanBodyBones.Spine,HumanBodyBones.Chest,HumanBodyBones.Head,HumanBodyBones.LeftUpperArm,HumanBodyBones.Hips,
+        HumanBodyBones.LeftUpperLeg,HumanBodyBones.LeftLowerLeg,HumanBodyBones.LeftFoot,HumanBodyBones.RightUpperLeg,HumanBodyBones.RightLowerLeg,HumanBodyBones.RightFoot,HumanBodyBones.LeftLowerArm};
+    readonly Transform[] bones = new Transform[Touched.Length];
+    readonly Quaternion[] original = new Quaternion[Touched.Length];
+    Vector3 hipsPosition;
     bool applied;
 
     public void Restore()
@@ -61,30 +63,69 @@ public sealed class SwordBodyPose
         if (!applied) return;
         for(int i=0;i<bones.Length;i++)
             if(bones[i]!=null) bones[i].localRotation=original[i];
+        if(bones[4]!=null) bones[4].localPosition=hipsPosition;
         applied=false;
     }
 
     public void Apply(Animator animator, Transform root, float phase, bool attacking, bool axe = false)
     {
-        if(!attacking || animator==null || !animator.isHuman) return;
-        bones[0]=animator.GetBoneTransform(HumanBodyBones.Spine);
-        bones[1]=animator.GetBoneTransform(HumanBodyBones.Chest);
-        bones[2]=animator.GetBoneTransform(HumanBodyBones.Head);
-        bones[3]=animator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
+        if(!attacking || animator==null) return;
         for(int i=0;i<bones.Length;i++)
+        {
+            bones[i]=ToyCharacterRig.Bone(animator,Touched[i]);
             if(bones[i]!=null) original[i]=bones[i].localRotation;
+        }
+        Transform spine=bones[0],chest=bones[1],head=bones[2],leftArm=bones[3],hips=bones[4];
+        if(hips!=null) hipsPosition=hips.localPosition;
         applied=true;
         // The torso leads slightly, then settles while the hand completes recovery.
         float lead=0.025f*Mathf.Sin(Mathf.Clamp01(phase)*Mathf.PI);
         var motion=axe ? AxeSwingMotion.Evaluate(phase+lead) : SwordSwingMotion.Evaluate(phase+lead);
-        float twist=motion.twist;
+        bool toy=animator.GetComponent<ToyCharacterRig>()!=null;
+        float twist=motion.twist*(toy ? (axe ? 1.8f : 1f) : 1f);
         float lean=motion.lean;
-        Rotate(bones[0],root,twist*0.45f,lean*0.45f);
-        Rotate(bones[1],root,twist*0.55f,lean*0.55f);
+        float effort=Mathf.Sin(Mathf.Clamp01(phase)*Mathf.PI);
+        ShiftWeight(hips,root,twist,lean,toy,effort,toy && !axe);
+        // the hips already turn into the cut, so the spine and chest add less than before
+        Rotate(spine,root,twist*0.25f,lean*0.40f);
+        Rotate(chest,root,twist*0.45f,lean*0.60f);
         // Keep the eyes on the target while the chest leads the cut.
-        Rotate(bones[2],root,-twist*0.65f,-lean*0.65f);
-        if(bones[3]!=null)
-            bones[3].rotation=Quaternion.AngleAxis(-twist*0.4f,root.forward)*bones[3].rotation;
+        Rotate(head,root,-twist*0.65f,-lean*0.65f);
+        if(leftArm!=null)
+        {
+            if(toy && chest!=null && bones[11]!=null)
+            {
+                var hand=ToyCharacterRig.Bone(animator,HumanBodyBones.LeftHand);
+                if(hand!=null)
+                {
+                    float reach=Vector3.Distance(leftArm.position,bones[11].position)+Vector3.Distance(bones[11].position,hand.position);
+                    var offset=new Vector3(-.55f,-.68f,.28f+effort*.16f);
+                    var upperRest=leftArm.localRotation;var lowerRest=bones[11].localRotation;
+                    TwoBoneIK.Solve(leftArm,bones[11],hand,leftArm.position+chest.rotation*offset*reach,chest.rotation*new Vector3(-1,-.2f,-.15f));
+                    leftArm.localRotation=Quaternion.Slerp(upperRest,leftArm.localRotation,effort);
+                    bones[11].localRotation=Quaternion.Slerp(lowerRest,bones[11].localRotation,effort);
+                }
+            }
+            else leftArm.rotation=Quaternion.AngleAxis(-twist*.4f,root.forward)*leftArm.rotation;
+        }
+    }
+
+    // Body weight behind the cut: hips draw back on the wind-up, then turn, sink and drive forward
+    // through contact. The feet stay where the walk or idle put them; the knees take the drop.
+    void ShiftWeight(Transform hips,Transform root,float twist,float lean,bool toy,float effort,bool gentle=false)
+    {
+        Transform legL=bones[5],kneeL=bones[6],footL=bones[7],legR=bones[8],kneeR=bones[9],footR=bones[10];
+        if(hips==null || legL==null || kneeL==null || footL==null || legR==null || kneeR==null || footR==null) return;
+        Vector3 plantL=footL.position,plantR=footR.position;Quaternion turnL=footL.rotation,turnR=footR.rotation;
+        float leg=Vector3.Distance(legL.position,kneeL.position)+Vector3.Distance(kneeL.position,footL.position);
+        float weight=Mathf.Clamp(lean/(toy ? 9f : 3f),-0.6f,1f);
+        hips.position+=root.forward*((gentle ? .10f : toy ? .18f : .08f)*leg*weight)
+            +Vector3.down*(leg*(gentle ? .065f*effort : toy ? .16f*effort : .10f*Mathf.Max(0f,weight)));
+        if(toy && !gentle) hips.position+=root.right*(leg*twist/38f*-.09f);
+        hips.rotation=Quaternion.AngleAxis(twist*(toy ? .55f : .3f),root.up)*hips.rotation;
+        TwoBoneIK.Solve(legL,kneeL,footL,plantL,root.forward);
+        TwoBoneIK.Solve(legR,kneeR,footR,plantR,root.forward);
+        footL.rotation=turnL;footR.rotation=turnR;
     }
 
     static void Rotate(Transform bone,Transform root,float yaw,float pitch)
@@ -107,16 +148,17 @@ public static class SwordSwingMotion
         public float yaw,pitch,roll,twist,lean;
     }
     static readonly float[] Times={0f,0.16f,0.28f,0.40f,0.56f,0.78f,1f};
+    // Hand stays on the sword side of the belly; the blade completes the diagonal cut.
     static readonly Vector3[] Wrist={
-        new Vector3(0.24f,-0.67f,0.45f),new Vector3(0.58f,-0.26f,0.52f),
-        new Vector3(0.08f,-0.28f,0.88f),new Vector3(-0.32f,-0.39f,0.78f),
-        new Vector3(-0.16f,-0.62f,0.66f),new Vector3(0.19f,-0.69f,0.47f),
-        new Vector3(0.24f,-0.67f,0.45f)};
-    static readonly float[] Yaw={20f,61f,0f,-60f,-43f,14f,20f};
-    static readonly float[] Pitch={52f,44f,-2f,-18f,-9f,35f,52f};
-    static readonly float[] Roll={0f,-16f,0f,18f,12f,3f,0f};
-    static readonly float[] Twist={0f,-14f,10f,21f,12f,2f,0f};
-    static readonly float[] Lean={0f,-2f,2f,3f,2f,-0.5f,0f};
+        new Vector3(.45f,-.65f,.35f),new Vector3(.65f,-.25f,.25f),
+        new Vector3(.45f,-.35f,.70f),new Vector3(.25f,-.50f,.64f),
+        new Vector3(.28f,-.60f,.54f),new Vector3(.40f,-.65f,.38f),
+        new Vector3(.45f,-.65f,.35f)};
+    static readonly float[] Yaw={24f,66f,0f,-48f,-32f,15f,24f};
+    static readonly float[] Pitch={30f,48f,0f,-24f,-15f,22f,30f};
+    static readonly float[] Roll={0f,-8f,0f,8f,6f,1f,0f};
+    static readonly float[] Twist={0f,-12f,5f,14f,8f,1f,0f};
+    static readonly float[] Lean={0f,-4f,5f,6f,3f,0f,0f};
 
     public static Sample Evaluate(float phase)
     {

@@ -18,6 +18,7 @@ public sealed class PlayerWeapons : MonoBehaviour
     readonly GameObject[] guns=new GameObject[3];
     readonly bool[] owned=new bool[3];
     PlayerGunCombat gunCombat;
+    Kind? pendingEquip;
     public bool IsGun => Equipped>=Kind.Shotgun;
     public Transform GunModel => IsGun && guns[(int)Equipped-2]!=null ? guns[(int)Equipped-2].transform : null;
     public Transform GunMuzzle => GunModel!=null ? GunModel.Find("Muzzle") : null;
@@ -28,7 +29,7 @@ public sealed class PlayerWeapons : MonoBehaviour
         bool first=!owned[i];
         if(!gunCombat.AddAmmo(kind,first))return false;
         owned[i]=true;
-        if(first && !attack.AttackInProgress)TryEquip(kind);
+        if(first && !pendingEquip.HasValue)RequestEquip(kind);
         return true;
     }
 
@@ -77,12 +78,29 @@ public sealed class PlayerWeapons : MonoBehaviour
     }
     void Update()
     {
-        if (Time.timeScale <= 0f || RunStats.Instance==null || !RunStats.Instance.Running || Keyboard.current == null) return;
-        if (Keyboard.current.digit1Key.wasPressedThisFrame) TryEquip(Kind.Sword);
-        if (Keyboard.current.digit2Key.wasPressedThisFrame) TryEquip(Kind.Axe);
-        if (Keyboard.current.digit3Key.wasPressedThisFrame) TryEquip(Kind.Shotgun);
-        if (Keyboard.current.digit4Key.wasPressedThisFrame) TryEquip(Kind.MachineGun);
-        if (Keyboard.current.digit5Key.wasPressedThisFrame) TryEquip(Kind.LaserGun);
+        if (RunStats.Instance==null || !RunStats.Instance.Running) { pendingEquip=null; return; }
+        if (Time.timeScale <= 0f) return;
+        TryApplyPendingEquip();
+        if (Keyboard.current == null) return;
+        if (Keyboard.current.digit1Key.wasPressedThisFrame) RequestEquip(Kind.Sword);
+        if (Keyboard.current.digit2Key.wasPressedThisFrame) RequestEquip(Kind.Axe);
+        if (Keyboard.current.digit3Key.wasPressedThisFrame) RequestEquip(Kind.Shotgun);
+        if (Keyboard.current.digit4Key.wasPressedThisFrame) RequestEquip(Kind.MachineGun);
+        if (Keyboard.current.digit5Key.wasPressedThisFrame) RequestEquip(Kind.LaserGun);
+    }
+    // A requested swap waits for the current swing; the latest valid request wins.
+    public bool RequestEquip(Kind kind)
+    {
+        if (!Owns(kind)) return false;
+        if (kind==Equipped) { pendingEquip=null; return true; }
+        if (TryEquip(kind)) return true;
+        pendingEquip=kind;
+        return true;
+    }
+    public bool TryApplyPendingEquip()
+    {
+        if (!pendingEquip.HasValue || Time.timeScale<=0 || RunStats.Instance==null || !RunStats.Instance.Running) return false;
+        return TryEquip(pendingEquip.Value);
     }
     public bool TryEquip(Kind kind)
     {
@@ -90,12 +108,14 @@ public sealed class PlayerWeapons : MonoBehaviour
         if (attack == null || attack.AttackInProgress || (kind == Kind.Axe && (!HasAxe || axe == null))) return false;
         if(kind>=Kind.Shotgun && (!Owns(kind) || guns[(int)kind-2]==null))return false;
         if(Equipped!=kind && gunCombat!=null)gunCombat.CancelAction();
-        Equipped = kind; Refresh(); return true;
+        pendingEquip=null; Equipped = kind; Refresh(); return true;
     }
     public bool CollectAxe()
     {
-        if (HasAxe || axe == null || attack.AttackInProgress) return false;
-        HasAxe = true; return TryEquip(Kind.Axe);
+        if (HasAxe || axe == null) return false;
+        HasAxe = true;
+        if (!pendingEquip.HasValue) RequestEquip(Kind.Axe);
+        return true;
     }
     void Refresh()
     {

@@ -8,9 +8,9 @@ public sealed class CharacterUpgradePickup : MonoBehaviour
     CharacterGrowth player;
     float age,baseY;
     bool collected;
-    bool readyToCollect;
+    float collectCooldown;
     const float CollectRadius=.9f;
-    const float RearmRadius=1.5f;
+    const float ChoiceRecoveryDelay=1.5f;
     const float CollectDelay=.75f;
     public static CharacterUpgradePickup Spawn(Vector3 position,CharacterGrowth.Kind kind)
     {
@@ -25,24 +25,27 @@ public sealed class CharacterUpgradePickup : MonoBehaviour
     void Start()
     {
         player=FindFirstObjectByType<CharacterGrowth>();baseY=transform.position.y;
-        // A crate dropped under the player must be approached again, not consumed on spawn.
-        readyToCollect=PlayerDistanceSquared()>RearmRadius*RearmRadius;
+        // Allow drops at the player's feet after a short spawn delay.
+        collectCooldown=CollectDelay;
         PickupCrateVisual.Build(transform,PickupCrateVisual.Category.Growth,new Color(.3f,1,.4f));
     }
     void Update()
     {
         var choices=FindFirstObjectByType<UpgradeSystem>();
-        // Nearby crates must not queue another interruption when the current choice closes.
-        if(choices!=null && choices.Choosing && PlayerDistanceSquared()<=RearmRadius*RearmRadius)
-            readyToCollect=false;
+        // Space out choice screens without requiring the player to leave and return.
+        if(choices!=null && choices.Choosing)
+        {
+            collectCooldown=ChoiceRecoveryDelay;
+            return;
+        }
         if(Time.timeScale<=0 || RunStats.Instance==null || !RunStats.Instance.Running || collected)return;
+        collectCooldown=Mathf.Max(0,collectCooldown-Time.deltaTime);
         age+=Time.deltaTime;if(age>=lifetime){Destroy(gameObject);return;}
         transform.Rotate(0,60*Time.deltaTime,0);
         var at=transform.position;at.y=baseY+Mathf.Sin(age*3)*.08f;transform.position=at;
         if(player==null)return;
         float distanceSquared=PlayerDistanceSquared();
-        if(distanceSquared>RearmRadius*RearmRadius)readyToCollect=true;
-        if(!readyToCollect || age<CollectDelay || distanceSquared>CollectRadius*CollectRadius)return;
+        if(collectCooldown>0 || distanceSquared>CollectRadius*CollectRadius)return;
         if(!MapNavigation.CanCollect(transform.position,player.transform.position) || choices==null || !choices.TryOffer(player))return;
         collected=true;Destroy(gameObject);
     }

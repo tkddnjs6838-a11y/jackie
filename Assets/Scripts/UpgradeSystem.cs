@@ -10,15 +10,16 @@ public sealed class UpgradeSystem : MonoBehaviour
     GameObject choicePanel;
     CharacterGrowth recipient;
     GameObject inventoryPanel;
-    readonly Text[] inventoryRows=new Text[8];
+    readonly Text[] inventoryRows=new Text[CharacterGrowth.KindCount];
+    readonly Image[] inventoryIcons=new Image[CharacterGrowth.KindCount];
     Text emptyInventory;
     public bool InventoryOpen {get;private set;}
     public GameObject InventoryPanel=>inventoryPanel;
     CursorLockMode inventoryLock;
     bool inventoryCursor;
     readonly List<CharacterGrowth.Kind> offered=new List<CharacterGrowth.Kind>();
-    readonly Button[] buttons=new Button[3];
-    readonly Text[] labels=new Text[3];
+    readonly AugmentCard[] cards=new AugmentCard[3];
+    RectTransform choiceContent;
     public bool Choosing { get; private set; }
     public IReadOnlyList<CharacterGrowth.Kind> Offered=>offered;
     public GameObject ChoicePanel=>choicePanel;
@@ -28,6 +29,15 @@ public sealed class UpgradeSystem : MonoBehaviour
     void OnDestroy(){if(choicePanel!=null)Destroy(choicePanel);if(inventoryPanel!=null)Destroy(inventoryPanel);}
     void Update()
     {
+        // short or very wide screens: shrink the whole choice layout until it fits
+        if(Choosing && choiceContent!=null)
+        {
+            var area=((RectTransform)choicePanel.transform).rect.size;
+            var safe=Screen.safeArea;
+            var screen=new Vector2(Mathf.Max(1,Screen.width),Mathf.Max(1,Screen.height));
+            choiceContent.anchoredPosition=new Vector2((safe.center.x/screen.x-.5f)*area.x,(safe.center.y/screen.y-.5f)*area.y);
+            choiceContent.localScale=Vector3.one*Mathf.Min(1f,area.x*(safe.width/screen.x)/880f,area.y*(safe.height/screen.y)/540f);
+        }
         if(Keyboard.current==null)return;
         if(Keyboard.current.tabKey.wasPressedThisFrame)ToggleInventory();
         else if(InventoryOpen && Keyboard.current.escapeKey.wasPressedThisFrame)CloseInventory();
@@ -42,10 +52,11 @@ public sealed class UpgradeSystem : MonoBehaviour
         foreach(CharacterGrowth.Kind kind in System.Enum.GetValues(typeof(CharacterGrowth.Kind)))
         {
             if(growth.Level(kind)==0)continue;
-            inventoryRows[row].text=growth.OwnedDescription(kind);inventoryRows[row++].gameObject.SetActive(true);
+            inventoryRows[row].text=growth.OwnedDescription(kind);inventoryIcons[row].sprite=GameUiArt.Icon(kind);inventoryRows[row++].transform.parent.gameObject.SetActive(true);
         }
-        for(int i=row;i<inventoryRows.Length;i++)inventoryRows[i].gameObject.SetActive(false);
+        for(int i=row;i<inventoryRows.Length;i++)inventoryRows[i].transform.parent.gameObject.SetActive(false);
         emptyInventory.gameObject.SetActive(row==0);
+        LayoutInventory(row);
         inventoryLock=Cursor.lockState;inventoryCursor=Cursor.visible;
         InventoryOpen=true;inventoryPanel.SetActive(true);Time.timeScale=0;
         Cursor.lockState=CursorLockMode.None;Cursor.visible=true;return true;
@@ -59,26 +70,37 @@ public sealed class UpgradeSystem : MonoBehaviour
             Time.timeScale=1;Cursor.lockState=inventoryLock;Cursor.visible=inventoryCursor;
         }
     }
+    void LayoutInventory(int count)
+    {
+        int rows=Mathf.Max(1,(count+1)/2);float height=206+rows*80,top=height*.5f;
+        var root=inventoryPanel.transform;
+        ((RectTransform)root.Find("InventoryCard")).sizeDelta=new Vector2(920,height);
+        ((RectTransform)root.Find("Title")).anchoredPosition=new Vector2(0,top-54);
+        ((RectTransform)root.Find("Hint")).anchoredPosition=new Vector2(0,top-92);
+        ((RectTransform)root.Find("Close")).anchoredPosition=new Vector2(0,-top+53);
+        for(int i=0;i<count;i++)((RectTransform)inventoryRows[i].transform.parent).anchoredPosition=new Vector2(count==1?0:i%2==0?-219:219,top-162-(i/2)*80);
+    }
     void EnsureInventoryUI()
     {
         if(inventoryPanel!=null)return;
         inventoryPanel=new GameObject("OwnedAugments",typeof(RectTransform),typeof(Canvas),typeof(CanvasScaler),typeof(GraphicRaycaster),typeof(Image));
-        var canvas=inventoryPanel.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=190;
+        var canvas=inventoryPanel.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=390;
         var scaler=inventoryPanel.GetComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1280,720);scaler.matchWidthOrHeight=.5f;
-        inventoryPanel.GetComponent<Image>().color=new Color(.015f,.025f,.045f,.96f);
+        inventoryPanel.GetComponent<Image>().color=new Color(.01f,.025f,.05f,.86f);
         var font=Resources.Load<Font>("UI/AugmentKorean");
-        MakeText(inventoryPanel.transform,"Title","보유 증강",font,36,new Vector2(0,290),new Vector2(1100,55));
-        MakeText(inventoryPanel.transform,"Hint","이번 판에 획득한 증강 · 일시 효과와 무기별 보정 제외",font,20,new Vector2(0,240),new Vector2(1100,40));
-        emptyInventory=MakeText(inventoryPanel.transform,"Empty","아직 획득한 증강이 없습니다.\n증강 상자를 주워 효과를 선택하세요.",font,25,Vector2.zero,new Vector2(1100,150));
+        ToyMenuLayout.Panel(inventoryPanel.transform,"InventoryCard",Vector2.zero,new Vector2(920,590));
+        ToyMenuLayout.Label(inventoryPanel.transform,"Title","보유 증강",32,new Vector2(0,241),new Vector2(830,48),ToyMenuLayout.White);
+        ToyMenuLayout.Label(inventoryPanel.transform,"Hint","이번 판에서 고른 효과",15,new Vector2(0,203),new Vector2(830,30),ToyMenuLayout.Muted);
+        emptyInventory=ToyMenuLayout.Label(inventoryPanel.transform,"Empty","아직 획득한 증강이 없어요.\n상자를 발견하면 효과를 골라보세요!",22,Vector2.zero,new Vector2(800,110),ToyMenuLayout.Muted);
         for(int i=0;i<inventoryRows.Length;i++)
         {
-            inventoryRows[i]=MakeText(inventoryPanel.transform,"Owned"+i,"",font,22,new Vector2(i%2==0?-285:285,150-(i/2)*115),new Vector2(530,105));
-            inventoryRows[i].alignment=TextAnchor.MiddleLeft;
+            var row=ToyMenuLayout.Panel(inventoryPanel.transform,"Owned"+i,new Vector2(i%2==0?-219:219,133-(i/2)*80),new Vector2(418,74),false).transform;
+            var icon=ToyMenuLayout.Rect(row,"Icon",new Vector2(-166,0),new Vector2(68,68)).gameObject.AddComponent<Image>();icon.raycastTarget=false;icon.preserveAspect=true;inventoryIcons[i]=icon;
+            inventoryRows[i]=ToyMenuLayout.Label(row,"Description","",15,new Vector2(37,0),new Vector2(316,66),ToyMenuLayout.White,TextAnchor.MiddleLeft);
         }
-        var close=new GameObject("Close",typeof(RectTransform),typeof(Image),typeof(Button));close.transform.SetParent(inventoryPanel.transform,false);
-        var rect=close.GetComponent<RectTransform>();rect.anchorMin=rect.anchorMax=rect.pivot=new Vector2(.5f,.5f);rect.anchoredPosition=new Vector2(0,-290);rect.sizeDelta=new Vector2(360,55);
-        close.GetComponent<Image>().color=new Color(.12f,.22f,.34f);close.GetComponent<Button>().onClick.AddListener(CloseInventory);
-        MakeText(close.transform,"Label","닫기  ·  Tab / Esc",font,22,Vector2.zero,new Vector2(340,50));
+        var close=ToyMenuLayout.Rect(inventoryPanel.transform,"Close",new Vector2(0,-242),new Vector2(300,50)).gameObject.AddComponent<Button>();
+        ToyMenuLayout.ButtonStyle(close,"닫기  ·  Tab / Esc",true,new Vector2(0,-242),new Vector2(300,50));
+        close.onClick.AddListener(()=>GameAudio.Play(GameAudio.Sfx.UiClick));close.onClick.AddListener(CloseInventory);
     }
 
     public bool TryOffer(CharacterGrowth growth)
@@ -93,10 +115,9 @@ public sealed class UpgradeSystem : MonoBehaviour
         EnsureUI();offered.Clear();recipient=growth;
         for(int i=0;i<3;i++)
         {
-            buttons[i].gameObject.SetActive(true);
-            if(candidates.Count==0){buttons[i].gameObject.SetActive(false);continue;}
+            if(candidates.Count==0){cards[i].Hide();continue;}
             int index=Random.Range(0,candidates.Count);var kind=candidates[index];candidates.RemoveAt(index);offered.Add(kind);
-            labels[i].text=growth.ChoiceDescription(kind);
+            cards[i].Show(growth,kind);
         }
         previousLock=Cursor.lockState;previousCursor=Cursor.visible;
         Choosing=true;choicePanel.SetActive(true);Time.timeScale=0;
@@ -125,28 +146,23 @@ public sealed class UpgradeSystem : MonoBehaviour
     {
         if(choicePanel!=null)return;
         choicePanel=new GameObject("AugmentChoice",typeof(RectTransform),typeof(Canvas),typeof(CanvasScaler),typeof(GraphicRaycaster),typeof(Image));
-        var canvas=choicePanel.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=200;
+        // above the stage HUD (350) so nothing sits on top of the cards
+        var canvas=choicePanel.GetComponent<Canvas>();canvas.renderMode=RenderMode.ScreenSpaceOverlay;canvas.sortingOrder=400;
         var scaler=choicePanel.GetComponent<CanvasScaler>();scaler.uiScaleMode=CanvasScaler.ScaleMode.ScaleWithScreenSize;scaler.referenceResolution=new Vector2(1280,720);scaler.matchWidthOrHeight=.5f;
-        choicePanel.GetComponent<Image>().color=new Color(.015f,.025f,.045f,.94f);
+        choicePanel.GetComponent<Image>().color=new Color(.025f,.045f,.12f,.38f);
         var font=Resources.Load<Font>("UI/AugmentKorean");
-        MakeText(choicePanel.transform,"Title","증강 선택",font,36,new Vector2(0,265),new Vector2(1100,60));
-        MakeText(choicePanel.transform,"Hint","상자 1개 · 효과 1개 선택 · 이번 판 동안 유지",font,20,new Vector2(0,212),new Vector2(1100,45));
+        choiceContent=new GameObject("Content",typeof(RectTransform)).GetComponent<RectTransform>();
+        choiceContent.SetParent(choicePanel.transform,false);choiceContent.sizeDelta=new Vector2(1280,720);
+        var heading=GameUiStyle.Label(choiceContent,"Title","증강 선택",font,46,Color.white,new Vector2(0,238),new Vector2(1100,90),true);
+        var outline=heading.gameObject.AddComponent<Outline>();outline.effectColor=new Color(.1f,.13f,.28f);outline.effectDistance=new Vector2(2.5f,-2.5f);
+        var drop=heading.gameObject.AddComponent<Shadow>();drop.effectColor=new Color(0,0,0,.35f);drop.effectDistance=new Vector2(0,-5);
+        GameUiStyle.Label(choiceContent,"Hint","상자 1개 · 효과 1개 선택 · 이번 판 동안 유지",font,19,new Color(1,1,1,.8f),new Vector2(0,191),new Vector2(1100,40),false);
         for(int i=0;i<3;i++)
         {
-            var card=new GameObject("Choice"+i,typeof(RectTransform),typeof(Image),typeof(Button));card.transform.SetParent(choicePanel.transform,false);
-            var rect=card.GetComponent<RectTransform>();rect.anchorMin=rect.anchorMax=rect.pivot=new Vector2(.5f,.5f);rect.sizeDelta=new Vector2(350,330);rect.anchoredPosition=new Vector2((i-1)*380,-5);
-            GameUiStyle.Apply(card.GetComponent<Image>(),new Color(.06f,.09f,.13f));GameUiStyle.Accent(card.transform);
-            var frame=card.AddComponent<Outline>();frame.effectColor=new Color(.35f,.43f,.5f);frame.effectDistance=new Vector2(1,-1);
-            buttons[i]=card.GetComponent<Button>();int selected=i;buttons[i].onClick.AddListener(()=>Choose(selected));
-            labels[i]=MakeText(card.transform,"Effect","",font,23,Vector2.zero,new Vector2(310,295));
+            cards[i]=new AugmentCard(choiceContent,font,i,new Vector2((i-1)*278,-22));
+            int selected=i;cards[i].Button.onClick.AddListener(()=>Choose(selected));
         }
-        MakeText(choicePanel.transform,"Footer","원하는 카드를 누르면 전투가 이어집니다",font,20,new Vector2(0,-245),new Vector2(1100,45));
     }
     static Text MakeText(Transform parent,string name,string content,Font font,int size,Vector2 at,Vector2 bounds)
-    {
-        var go=new GameObject(name,typeof(RectTransform),typeof(Text));go.transform.SetParent(parent,false);
-        var rect=go.GetComponent<RectTransform>();rect.anchorMin=rect.anchorMax=rect.pivot=new Vector2(.5f,.5f);rect.anchoredPosition=at;rect.sizeDelta=bounds;
-        var text=go.GetComponent<Text>();text.font=font;text.fontSize=size;text.fontStyle=size>=30?FontStyle.Bold:FontStyle.Normal;text.color=size>=30?GameUiStyle.Gold:Color.white;text.alignment=TextAnchor.MiddleCenter;text.text=content;text.raycastTarget=false;
-        return text;
-    }
+        =>GameUiStyle.Label(parent,name,content,font,size,size>=30?GameUiStyle.Gold:Color.white,at,bounds,size>=30);
 }

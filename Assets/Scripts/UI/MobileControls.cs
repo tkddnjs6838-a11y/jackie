@@ -58,7 +58,7 @@ public sealed class MobileControls : MonoBehaviour
         var stick=Control("Move",Vector2.zero,new Vector2(145,145),new Vector2(164,164),"");
         var knob=new GameObject("StickKnob",typeof(RectTransform),typeof(Image));knob.transform.SetParent(stick.transform,false);
         var knobRect=knob.GetComponent<RectTransform>();knobRect.sizeDelta=new Vector2(60,60);
-        var knobImage=knob.GetComponent<Image>();knobImage.sprite=Disc;knobImage.color=new Color(.85f,.90f,.92f,.45f);knobImage.raycastTarget=false;
+        var knobImage=knob.GetComponent<Image>();knobImage.sprite=Disc;knobImage.color=new Color(.82f,.95f,1f,.95f);knob.AddComponent<UiSurfaceGradient>();var knobEdge=knob.AddComponent<Outline>();knobEdge.effectColor=new Color(.9f,1,1,.9f);knobEdge.effectDistance=new Vector2(2,-2);knobImage.raycastTarget=false;
         stick.Stick=true;stick.OnStick=v=>{move=v;if(knobRect!=null)knobRect.anchoredPosition=v*60;};
         var attack=Control("Attack",new Vector2(1,0),new Vector2(-120,145),new Vector2(126,126),"공격");
         attack.OnHeld=v=>fire=v;attack.OnDragValue=d=>look+=d*180f/Mathf.Max(1,Screen.height);
@@ -81,6 +81,31 @@ public sealed class MobileControls : MonoBehaviour
             var icon=new GameObject("Glyph",typeof(RectTransform),typeof(CanvasRenderer),typeof(TouchGlyph));icon.transform.SetParent(go.transform,false);
             icon.GetComponent<RectTransform>().sizeDelta=size*.46f;
             var glyph=icon.GetComponent<TouchGlyph>();glyph.Symbol=name;glyph.color=new Color(.90f,.93f,.94f,.9f);glyph.raycastTarget=false;
+        }
+        if(name=="Move")
+        {
+            background.color=new Color(.18f,.47f,.55f,.24f);
+            var ring=new GameObject("JoystickGlow",typeof(RectTransform),typeof(Image));ring.transform.SetParent(go.transform,false);
+            ring.GetComponent<RectTransform>().sizeDelta=size+new Vector2(30,30);
+            var ri=ring.GetComponent<Image>();ri.sprite=GameUiStyle.RingGlow;ri.color=new Color(.65f,1,1,.9f);ri.raycastTarget=false;
+        }
+        if(name!="Look" && name!="Move")
+        {
+            background.color=name=="Attack"?GameUiStyle.Gold:name=="Dash"?GameUiStyle.Blue:new Color(.12f,.27f,.45f,.9f);
+            background.gameObject.AddComponent<UiSurfaceGradient>();
+            var edge=go.AddComponent<Outline>();edge.effectColor=name=="Attack"?new Color(1,.88f,.4f,.8f):new Color(.42f,.88f,1f,.65f);edge.effectDistance=new Vector2(2,-2);
+            var depth=go.AddComponent<Shadow>();depth.effectColor=new Color(.01f,.03f,.08f,.55f);depth.effectDistance=new Vector2(0,-5);
+            go.AddComponent<UiPressFeedback>();
+            var halo=new GameObject("Halo",typeof(RectTransform),typeof(Image));halo.transform.SetParent(go.transform,false);
+            var hr=halo.GetComponent<RectTransform>();hr.sizeDelta=size+new Vector2(26,26);
+            var hi=halo.GetComponent<Image>();hi.sprite=name=="Portal"?GameUiStyle.Glow:GameUiStyle.RingGlow;hi.type=name=="Portal"?Image.Type.Sliced:Image.Type.Simple;hi.color=name=="Attack"?new Color(1,.72f,.15f,.9f):new Color(.15f,.85f,1f,.7f);hi.raycastTarget=false;halo.transform.SetAsFirstSibling();
+            if(name=="Attack")
+            {
+                var glyph=go.transform.Find("Glyph");if(glyph!=null)glyph.gameObject.SetActive(false);
+                var art=new GameObject("SwordArt",typeof(RectTransform),typeof(Image));art.transform.SetParent(go.transform,false);
+                art.GetComponent<RectTransform>().sizeDelta=size*.80f;
+                var ai=art.GetComponent<Image>();ai.sprite=GameUiArt.Icon(CharacterGrowth.Kind.Power);ai.preserveAspect=true;ai.raycastTarget=false;
+            }
         }
         var textGo=new GameObject("Label",typeof(RectTransform),typeof(Text));textGo.transform.SetParent(go.transform,false);
         var tr=textGo.GetComponent<RectTransform>();tr.anchorMin=Vector2.zero;tr.anchorMax=Vector2.one;tr.sizeDelta=Vector2.zero;

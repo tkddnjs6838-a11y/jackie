@@ -42,7 +42,7 @@ public static class WeaponChecks
             victims[i]=Object.Instantiate(spawner.enemyPrefab,at,Quaternion.identity).GetComponent<Enemy>();
             victims[i].maxHealth=1000;victims[i].RefreshConfiguredStatsAndColor();victims[i].externalMovement=true;
         }
-        typeof(PlayerAutoAttack).GetMethod("Swing",flags).Invoke(attack,new object[]{false,false});
+        typeof(PlayerAutoAttack).GetMethod("Swing",flags).Invoke(attack,null);
         Require(!weapons.TryEquip(PlayerWeapons.Kind.Sword),"switching blocked during swing");
         yield return new WaitForSeconds(attack.manualAttackCooldown*1.85f+.2f);
         Require(victims[0].CurrentHealth<1000 && victims[1].CurrentHealth<1000 && victims[2].CurrentHealth==1000,"wide arc hits front and side, excludes rear");

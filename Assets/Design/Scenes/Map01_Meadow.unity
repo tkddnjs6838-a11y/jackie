@@ -20,9 +20,9 @@ RenderSettings:
   m_FogDensity: 0.01
   m_LinearFogStart: 55
   m_LinearFogEnd: 170
-  m_AmbientSkyColor: {r: 0.45866665, g: 0.6106667, b: 0.73333335, a: 0.8}
-  m_AmbientEquatorColor: {r: 0.527647, g: 0.5862745, b: 0.61176467, a: 0.65}
-  m_AmbientGroundColor: {r: 0.24352942, g: 0.27058825, b: 0.28235295, a: 0.3}
+  m_AmbientSkyColor: {r: 0.6161961, g: 0.76484317, b: 0.88480395, a: 0.95}
+  m_AmbientEquatorColor: {r: 0.6494118, g: 0.72156864, b: 0.7529412, a: 0.8}
+  m_AmbientGroundColor: {r: 0.3652941, g: 0.40588236, b: 0.42352942, a: 0.45}
   m_AmbientIntensity: 1
   m_AmbientMode: 1
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
@@ -10608,7 +10608,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 904841783}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.19134171, y: 0.8001032, z: -0.3314136, w: 0.46193972}
+  m_LocalRotation: {x: 0.4768585, y: -0.2604189, z: 0.15035291, w: 0.8259431}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -10626,7 +10626,7 @@ Light:
   serializedVersion: 12
   m_Type: 1
   m_Color: {r: 1, g: 0.95, b: 0.86, a: 1}
-  m_Intensity: 1.7
+  m_Intensity: 1.45
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -18488,6 +18488,7 @@ GameObject:
   - component: {fileID: 1566006891}
   - component: {fileID: 1566006893}
   - component: {fileID: 1566006892}
+  - component: {fileID: 1566006894}
   m_Layer: 0
   m_Name: Map01_Meadow
   m_TagString: Untagged
@@ -18561,6 +18562,56 @@ MonoBehaviour:
   m_MinRegionArea: 2
   m_NavMeshData: {fileID: 23800000, guid: 567701011201c4dd89606cf32273823b, type: 2}
   m_BuildHeightMesh: 0
+--- !u!114 &1566006894
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1566006890}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 945e397f1f7dd42498e6cf9762bc7112, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MapMood
+  bright:
+    sunColor: {r: 1, g: 0.95, b: 0.86, a: 1}
+    sunIntensity: 1.45
+    sunEuler: {x: 60, y: -35, z: 0}
+    ambientSky: {r: 0.6161961, g: 0.76484317, b: 0.88480395, a: 0.95}
+    ambientEquator: {r: 0.6494118, g: 0.72156864, b: 0.7529412, a: 0.8}
+    ambientGround: {r: 0.3652941, g: 0.40588236, b: 0.42352942, a: 0.45}
+    fogColor: {r: 0.8117647, g: 0.9019608, b: 0.9411765, a: 1}
+    fogStart: 55
+    fogEnd: 170
+    skyZenith: {r: 0.42333335, g: 0.61333334, b: 0.7666667, a: 0.85}
+    skyHorizon: {r: 0.8117647, g: 0.9019608, b: 0.9411765, a: 1}
+    skyGround: {r: 0.74682355, g: 0.82980394, b: 0.8658824, a: 0.92}
+    cloudColor: {r: 0.9529412, g: 0.9754902, b: 0.9852941, a: 1}
+    cloudShade: {r: 0.654902, g: 0.8117647, b: 0.92156863, a: 1}
+    waterBase: {r: 0.21176471, g: 0.65882355, b: 0.8392157, a: 1}
+    waterDeep: {r: 0.14823529, g: 0.46117648, b: 0.587451, a: 0.7}
+    waterSky: {r: 0.7490196, g: 0.8607843, b: 0.9509804, a: 1}
+  dark:
+    sunColor: {r: 1, g: 0.72, b: 0.55, a: 1}
+    sunIntensity: 1.25
+    sunEuler: {x: 32, y: -35, z: 0}
+    ambientSky: {r: 0.16, g: 0.15, b: 0.32, a: 1}
+    ambientEquator: {r: 0.19211987, g: 0.12734313, b: 0.14092165, a: 0.517}
+    ambientGround: {r: 0.04, g: 0.035, b: 0.06, a: 1}
+    fogColor: {r: 0.19211987, g: 0.12734313, b: 0.14092165, a: 0.517}
+    fogStart: 25
+    fogEnd: 120
+    skyZenith: {r: 0.103764705, g: 0.12618825, b: 0.2314353, a: 1}
+    skyHorizon: {r: 0.7176251, g: 0.38955003, b: 0.2934, a: 0.85}
+    skyGround: {r: 0.19211987, g: 0.12734313, b: 0.14092165, a: 0.517}
+    cloudColor: {r: 0.41800207, g: 0.26917115, b: 0.28525135, a: 1.02575}
+    cloudShade: {r: 0.14527059, g: 0.17666355, b: 0.32400942, a: 1.4}
+    waterBase: {r: 0.09529412, g: 0.29647058, b: 0.37764704, a: 0.45}
+    waterDeep: {r: 0.05929412, g: 0.1844706, b: 0.23498039, a: 0.28}
+    waterSky: {r: 0.5023376, g: 0.27268502, b: 0.20538, a: 0.595}
+  sun: {fileID: 904841785}
+  water: {fileID: 1710625207}
 --- !u!1001 &1570815341
 PrefabInstance:
   m_ObjectHideFlags: 0

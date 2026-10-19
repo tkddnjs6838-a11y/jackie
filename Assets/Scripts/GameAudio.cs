@@ -25,7 +25,7 @@ public class GameAudio : MonoBehaviour
         BossSpawn,
         BossDie,
         Victory,
-        AxeHit, PistolShot, MachineShot, LaserCharge, LaserShot, PistolImpact, MachineImpact, LaserImpact, GunReload
+        AxeHit, PistolShot, MachineShot, LaserCharge, LaserShot, PistolImpact, MachineImpact, LaserImpact, GunReload, UiClick
     }
 
     [System.Serializable]
@@ -55,8 +55,10 @@ public class GameAudio : MonoBehaviour
     public Entry[] entries;
 
     [Header("Music")]
+    public AudioClip musicMenu;
     public AudioClip musicCombat;
     public AudioClip musicBoss;
+    public AudioClip musicBossFinal;
     public float musicFadeSeconds = 1.5f;
 
     private AudioSource[] voices;
@@ -65,6 +67,39 @@ public class GameAudio : MonoBehaviour
     private AudioSource musicB;
     private AudioSource activeMusic;
     private Coroutine fadeRoutine;
+    AudioSource bossEntrance;
+    bool entrancePending, entrancePaused;
+    float entrancePitch=1;
+
+    public void BeginBossEntrance(float warningSeconds)
+    {
+        if(warningSeconds<.5f)return;
+        StopMusic();
+        if(bossEntrance==null){bossEntrance=NewMusicSource("BossEntrance");bossEntrance.loop=false;}
+        bossEntrance.clip=Resources.Load<AudioClip>("Audio/BossSpawn");
+        if(bossEntrance.clip==null)return;
+        entrancePitch=3f/warningSeconds;
+        bossEntrance.pitch=entrancePitch;bossEntrance.volume=musicVolume;
+        entrancePending=true;entrancePaused=false;bossEntrance.Play();
+    }
+    public void CancelBossEntrance()
+    {
+        if(!entrancePending)return;
+        StopEntrance();
+        if(RunStats.Instance!=null && RunStats.Instance.Running)PlayMusic(musicCombat);
+    }
+    void StopEntrance()
+    {
+        entrancePending=entrancePaused=false;
+        if(bossEntrance!=null)bossEntrance.Stop();
+    }
+    void Update()
+    {
+        if(bossEntrance==null || (!entrancePending && !bossEntrance.isPlaying && !entrancePaused))return;
+        if(Time.timeScale<=0){if(!entrancePaused){bossEntrance.Pause();entrancePaused=true;}return;}
+        if(entrancePaused){bossEntrance.UnPause();entrancePaused=false;}
+        bossEntrance.pitch=(entrancePending?entrancePitch:1)*Time.timeScale;
+    }
 
     void Awake()
     {
@@ -90,6 +125,8 @@ public class GameAudio : MonoBehaviour
         musicB = NewMusicSource("MusicB");
         activeMusic = musicA;
     }
+
+    void Start(){if(RunStats.Instance==null || !RunStats.Instance.Running)PlayMusic(musicMenu);}
 
     AudioSource NewMusicSource(string name)
     {
@@ -131,8 +168,10 @@ public class GameAudio : MonoBehaviour
 
         // music follows the same drop-in rule as the effects, so a generated track only has
         // to be named MusicCombat or MusicBoss to be picked up
+        if(musicMenu==null)musicMenu=Resources.Load<AudioClip>("Audio/MusicMenu");
         if (musicCombat == null) musicCombat = Resources.Load<AudioClip>("Audio/MusicCombat");
-        if (musicBoss == null) musicBoss = Resources.Load<AudioClip>("Audio/MusicBoss");
+        musicBoss = Resources.Load<AudioClip>("Audio/MusicBossBounce") ?? musicBoss ?? Resources.Load<AudioClip>("Audio/MusicBoss");
+        if(musicBossFinal==null)musicBossFinal=Resources.Load<AudioClip>("Audio/MusicBossFinal");
     }
 
     void OnEnable()
@@ -158,12 +197,19 @@ public class GameAudio : MonoBehaviour
 
     void HandleBossSpawned(Enemy boss)
     {
-        Play(Sfx.BossSpawn);
-        PlayMusic(musicBoss);
+        if(entrancePending && bossEntrance!=null)
+        {
+            // Snap the impact to actual appearance even if a frame or hit-stop ran long.
+            bossEntrance.time=3f;bossEntrance.pitch=1;bossEntrance.UnPause();
+            entrancePending=entrancePaused=false;
+        }
+        var map=FindFirstObjectByType<MapSandbox>();
+        PlayMusic(map!=null && map.CurrentMap>=3 && musicBossFinal!=null ? musicBossFinal : musicBoss);
     }
 
     void HandleBossDefeated()
     {
+        StopEntrance();
         PlayMusic(musicCombat);
     }
 
@@ -196,7 +242,8 @@ public class GameAudio : MonoBehaviour
         var src = voices[nextVoice];
         nextVoice = (nextVoice + 1) % voices.Length;
 
-        src.pitch = 1f + Random.Range(-entry.pitchJitter, entry.pitchJitter);
+        src.Stop();
+        src.pitch = id==Sfx.BossSpawn ? 1f : 1f + Random.Range(-entry.pitchJitter, entry.pitchJitter);
         src.PlayOneShot(entry.clip, entry.volume * sfxVolume);
     }
 
@@ -219,8 +266,17 @@ public class GameAudio : MonoBehaviour
 
     public void StopMusic()
     {
+        StopEntrance();
         if (fadeRoutine != null) StopCoroutine(fadeRoutine);
-        fadeRoutine = StartCoroutine(Crossfade(activeMusic, null));
+        fadeRoutine = StartCoroutine(FadeOutAllMusic());
+    }
+
+    // Both sources may still be audible when victory interrupts a boss crossfade.
+    System.Collections.IEnumerator FadeOutAllMusic()
+    {
+        float a=musicA.volume,b=musicB.volume,t=0,duration=Mathf.Max(.01f,musicFadeSeconds);
+        while(t<duration){t+=Time.unscaledDeltaTime;float k=1-Mathf.Clamp01(t/duration);musicA.volume=a*k;musicB.volume=b*k;yield return null;}
+        musicA.Stop();musicB.Stop();musicA.volume=musicB.volume=0;fadeRoutine=null;
     }
 
     System.Collections.IEnumerator Crossfade(AudioSource from, AudioSource to)
@@ -247,6 +303,7 @@ public class GameAudio : MonoBehaviour
     /// <summary>Called when a run starts, so retrying restarts the combat track.</summary>
     public void StartRunMusic()
     {
+        StopEntrance();
         PlayMusic(musicCombat);
     }
 }

@@ -408,6 +408,7 @@ public static class MapBuilder
         sun.type = LightType.Directional;
         ApplySun(sun, def);
 
+        Renderer liquidRenderer = null;
         if (def.liquid.a > 0f)
         {
             var liquid = GameObject.CreatePrimitive(PrimitiveType.Plane);
@@ -416,8 +417,10 @@ public static class MapBuilder
             liquid.transform.SetParent(root, false);
             liquid.transform.position = new Vector3(0f, LiquidY, 0f);
             liquid.transform.localScale = new Vector3(Size / 10f, 1f, Size / 10f);
-            liquid.GetComponent<MeshRenderer>().sharedMaterial = LiquidMaterial(def, dir);
+            liquidRenderer = liquid.GetComponent<MeshRenderer>();
+            liquidRenderer.sharedMaterial = LiquidMaterial(def, dir);
         }
+        AttachMood(root, def, sun, liquidRenderer);
 
         if (def.liquid.a > 0f && !def.liquidGlows)
         {
@@ -482,48 +485,92 @@ public static class MapBuilder
         go.position = new Vector3(p.x, terrain.SampleHeight(p), p.z);
     }
 
+    // Daylight look (the "Bright" theme); this is the one baked into the map scene.
+    static MapMood.Preset BrightPreset(MapDef def) => new MapMood.Preset
+    {
+        // warm and high: a low side sun backlit half the headings and turned the boss into a dark blob
+        sunColor = def.sun * new Color(1f, 0.95f, 0.86f), sunIntensity = 1.45f, sunEuler = new Vector3(60f, -35f, 0f),
+        // the sky tint keeps shadows cool instead of grey; the fill stays bright enough that views
+        // facing away from the sun (the player turns everywhere) never go murky
+        ambientSky = Color.Lerp(def.skyTint, Color.white, 0.3f) * 0.95f, ambientEquator = def.fog * 0.8f, ambientGround = def.fog * 0.45f,
+        fogColor = def.fog, fogStart = 55f, fogEnd = 170f,
+        skyZenith = def.skyTint * 0.85f, skyHorizon = def.fog, // distant hills fade into the horizon, not into a band
+        skyGround = def.fog * 0.92f, cloudColor = Color.Lerp(def.fog, Color.white, 0.75f), cloudShade = Color.Lerp(def.fog, def.skyTint, 0.5f),
+        waterBase = def.liquid, waterDeep = def.liquid * 0.7f, waterSky = Color.Lerp(def.skyTint, Color.white, 0.5f),
+    };
+
+    // Start-screen dusk (the "Dark" theme): navy sky over an ember-orange horizon, warm low key light,
+    // dim purple fill. Each map keeps a hint of its own sky and fog colors.
+    static MapMood.Preset DarkPreset(MapDef def)
+    {
+        // warm gold key against cool purple shadows: the contrast keeps grass green instead of olive
+        Color zenith = Color.Lerp(def.skyTint, new Color(0.05f, 0.045f, 0.14f), 0.88f);
+        Color horizon = Color.Lerp(new Color(0.85f, 0.38f, 0.24f), def.fog, 0.15f) * 0.85f;
+        Color fog = Color.Lerp(horizon, zenith, 0.6f) * 0.55f;
+        return new MapMood.Preset
+        {
+            sunColor = new Color(1f, 0.72f, 0.55f), sunIntensity = 1.25f, sunEuler = new Vector3(32f, -35f, 0f),
+            ambientSky = new Color(0.16f, 0.15f, 0.32f), ambientEquator = fog, ambientGround = new Color(0.04f, 0.035f, 0.06f),
+            fogColor = fog, fogStart = 25f, fogEnd = 120f,
+            skyZenith = zenith, skyHorizon = horizon, skyGround = fog, cloudColor = Color.Lerp(horizon, zenith, 0.55f) * 1.1f, cloudShade = zenith * 1.4f,
+            waterBase = def.liquid * 0.45f, waterDeep = def.liquid * 0.28f, waterSky = horizon * 0.7f,
+        };
+    }
+
     static void ApplyAtmosphere(MapDef def, string dir)
     {
+        var p = BrightPreset(def);
         RenderSettings.fog = true;
         RenderSettings.fogMode = FogMode.Linear;
-        RenderSettings.fogStartDistance = 55f;
-        RenderSettings.fogEndDistance = 170f;
-        RenderSettings.fogColor = def.fog;
+        RenderSettings.fogStartDistance = p.fogStart;
+        RenderSettings.fogEndDistance = p.fogEnd;
+        RenderSettings.fogColor = p.fogColor;
         var sky = LoadOrCreateMaterial($"{dir}/M_{def.id}_Sky.mat", "Game/StylizedSky", Color.white, false);
-        sky.SetColor("_ZenithColor", def.skyTint * 0.85f);
-        sky.SetColor("_HorizonColor", def.fog); // distant hills fade into the horizon, not into a band
-        sky.SetColor("_GroundColor", def.fog * 0.92f);
-        sky.SetColor("_CloudColor", Color.Lerp(def.fog, Color.white, 0.75f));
-        sky.SetColor("_CloudShade", Color.Lerp(def.fog, def.skyTint, 0.5f));
+        sky.SetColor("_ZenithColor", p.skyZenith);
+        sky.SetColor("_HorizonColor", p.skyHorizon);
+        sky.SetColor("_GroundColor", p.skyGround);
+        sky.SetColor("_CloudColor", p.cloudColor);
+        sky.SetColor("_CloudShade", p.cloudShade);
         RenderSettings.skybox = sky;
-        // the fill stays well below the sun so lit and shaded sides read apart; the sky tint keeps
-        // shadows cool instead of grey
         RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-        RenderSettings.ambientSkyColor = Color.Lerp(def.skyTint, Color.white, 0.15f) * 0.8f;
-        RenderSettings.ambientEquatorColor = def.fog * 0.65f;
-        RenderSettings.ambientGroundColor = def.fog * 0.3f;
+        RenderSettings.ambientSkyColor = p.ambientSky;
+        RenderSettings.ambientEquatorColor = p.ambientEquator;
+        RenderSettings.ambientGroundColor = p.ambientGround;
     }
 
     static void ApplySun(Light sun, MapDef def)
     {
-        // warm key light from the side rather than behind the camera, so shapes get a lit and a shaded face
-        sun.color = def.sun * new Color(1f, 0.95f, 0.86f);
-        sun.intensity = 1.7f;
+        var p = BrightPreset(def);
+        sun.color = p.sunColor;
+        sun.intensity = p.sunIntensity;
         sun.shadows = LightShadows.Soft;
-        sun.transform.rotation = Quaternion.Euler(45f, 120f, 0f);
+        sun.transform.rotation = Quaternion.Euler(p.sunEuler);
     }
 
     static Material LiquidMaterial(MapDef def, string dir)
     {
         string path = $"{dir}/M_{def.id}_Liquid.mat";
         if (def.liquidGlows) return LoadOrCreateMaterial(path, "Universal Render Pipeline/Lit", def.liquid, true);
-        var mat = LoadOrCreateMaterial(path, "Game/StylizedWater", def.liquid, false);
-        mat.SetColor("_DeepColor", def.liquid * 0.7f);
-        mat.SetColor("_SkyColor", Color.Lerp(def.skyTint, Color.white, 0.5f));
+        var p = BrightPreset(def);
+        var mat = LoadOrCreateMaterial(path, "Game/StylizedWater", p.waterBase, false);
+        mat.SetColor("_DeepColor", p.waterDeep);
+        mat.SetColor("_SkyColor", p.waterSky);
         return mat;
     }
 
-    // Re-applies lighting, sky, water, grass and ground colors to the saved maps without rebuilding them,
+    // Stores both looks on the map root so the game can switch with the player's theme setting.
+    static void AttachMood(Transform root, MapDef def, Light sun, Renderer liquid)
+    {
+        var mood = root.GetComponent<MapMood>();
+        if (mood == null) mood = root.gameObject.AddComponent<MapMood>();
+        mood.sun = sun;
+        mood.water = liquid;
+        mood.bright = BrightPreset(def);
+        mood.dark = DarkPreset(def);
+        EditorUtility.SetDirty(mood);
+    }
+
+    // Re-applies lighting (both theme moods), sky, water, grass and ground colors to the saved maps without rebuilding them,
     // so components added to the scenes after the build (navigation) are kept.
     [MenuItem("Tools/Design/Refresh Map Look")]
     public static void RefreshLook()
@@ -540,10 +587,12 @@ public static class MapBuilder
             ApplyAtmosphere(def, dir);
             foreach (var root in scene.GetRootGameObjects())
             {
+                Light sun = null; Renderer liquid = null;
                 foreach (var light in root.GetComponentsInChildren<Light>(true))
-                    if (light.name == "Sun") ApplySun(light, def);
+                    if (light.name == "Sun") { ApplySun(light, def); sun = light; }
                 foreach (var r in root.GetComponentsInChildren<MeshRenderer>(true))
-                    if (r.name == "Zone_Liquid") r.sharedMaterial = LiquidMaterial(def, dir);
+                    if (r.name == "Zone_Liquid") { r.sharedMaterial = LiquidMaterial(def, dir); liquid = r; }
+                if (root.name == $"{def.id}_{def.name}") AttachMood(root.transform, def, sun, liquid);
             }
             EditorSceneManager.SaveScene(scene);
             EditorSceneManager.CloseScene(scene, true);

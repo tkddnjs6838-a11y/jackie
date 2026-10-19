@@ -53,6 +53,7 @@ public class RunHud : MonoBehaviour
     void UpdatePowerUp()
     {
         if (powerUpText == null) return;
+        if(PowerUpEffects.Instance!=null && PowerUpEffects.Instance.GetComponent<TimedEffectHud>()!=null){powerUpText.enabled=false;return;}
 
         var fx = PowerUpEffects.Instance;
         if (fx == null || !fx.Active)

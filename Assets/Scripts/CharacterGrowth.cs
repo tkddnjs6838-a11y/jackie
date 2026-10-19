@@ -4,14 +4,46 @@ using UnityEngine;
 public sealed class CharacterGrowth : MonoBehaviour
 {
     // Keep existing serialized pickup values stable.
-    public enum Kind { Power, Speed, Vitality, QuickHands, LongReach, WideSwing, BloodEdge, SecondWind }
+    public enum Kind { Power, Speed, Vitality, QuickHands, LongReach, WideSwing, BloodEdge, SecondWind, DashStrike, Shatter }
     public const int MaxLevel=5;
-    readonly int[] levels=new int[8];
+    public const int KindCount=10;
+    readonly int[] levels=new int[KindCount];
     public int Level(Kind kind)=>(int)kind>=0 && (int)kind<levels.Length?levels[(int)kind]:0;
-    public static int Limit(Kind kind)=>kind==Kind.BloodEdge?3:MaxLevel;
+    public static int Limit(Kind kind)=>kind==Kind.BloodEdge || kind==Kind.DashStrike || kind==Kind.Shatter?3:MaxLevel;
     public float DamageMultiplier=>1f+Level(Kind.Power)*.1f;
     public float MoveMultiplier=>1f+Level(Kind.Speed)*.05f;
     public float CooldownMultiplier=>Mathf.Pow(.85f,Level(Kind.QuickHands));
+    float dashStrikeUntil=-1f;
+    public bool DashStrikeReady=>Level(Kind.DashStrike)>0 && Time.time<dashStrikeUntil;
+    public void ArmDashStrike()
+    {
+        if(Level(Kind.DashStrike)==0)return;
+        dashStrikeUntil=Time.time+3f;
+        DamageNumber.Create(transform.position+Vector3.up*1.5f,"대시 일격 준비",ColorFor(Kind.DashStrike));
+    }
+    public float ConsumeDashStrike()
+    {
+        bool ready=DashStrikeReady;dashStrikeUntil=-1f;
+        return ready?1f+.2f*Level(Kind.DashStrike):1f;
+    }
+    public void BurstOnMeleeKill(Vector3 origin,float swingDamage)
+    {
+        int level=Level(Kind.Shatter);if(level==0)return;
+        const float radius=2.2f;
+        var targets=new System.Collections.Generic.List<Enemy>(Enemy.ActiveEnemies);
+        origin+=Vector3.up*.6f;
+        SwordSweep.Spawn(origin,transform.forward,radius,360f,radius*.7f,ColorFor(Kind.Shatter),.22f,1.12f);
+        foreach(var enemy in targets)
+        {
+            if(enemy==null || enemy.IsDying)continue;
+            var col=enemy.GetComponent<Collider>();if(col==null)continue;
+            Vector3 delta=col.ClosestPoint(origin)-origin;if(delta.magnitude>radius)continue;
+            bool blocked=false;
+            foreach(var hit in Physics.RaycastAll(origin,delta.normalized,delta.magnitude,~(1<<2),QueryTriggerInteraction.Ignore))
+                if(!hit.collider.transform.IsChildOf(transform) && hit.collider.GetComponentInParent<Enemy>()==null){blocked=true;break;}
+            if(!blocked)enemy.TakeDamage(swingDamage*.15f*level,origin,.6f);
+        }
+    }
     public bool CanCollect(Kind kind)
     {
         if((int)kind<0 || (int)kind>=levels.Length || Level(kind)>=Limit(kind))return false;
@@ -47,6 +79,9 @@ public sealed class CharacterGrowth : MonoBehaviour
             case Kind.SecondWind:
                 var dash=GetComponent<PlayerDash>();dash.cooldown=Mathf.Max(.5f,dash.cooldown-.4f);break;
         }
+        var visual = GetComponent<TimedEffectPlayerVisual>();
+        if (visual == null) visual = gameObject.AddComponent<TimedEffectPlayerVisual>();
+        visual.ShowAugment(kind);
         GameAudio.Play(GameAudio.Sfx.UpgradePick);
         DamageNumber.Create(transform.position+Vector3.up*1.5f,Name(kind)+" "+Level(kind)+"/"+Limit(kind),ColorFor(kind));
         return true;
@@ -57,12 +92,15 @@ public sealed class CharacterGrowth : MonoBehaviour
         for(int i=0;i<levels.Length;i++)if(CanCollect((Kind)i) && Random.Range(0,++count)==0)kind=(Kind)i;
         return count>0;
     }
-    public string ChoiceDescription(Kind kind)
+    // Card text for an offered augment: what it does and the stat before → after this level.
+    public (string title,string description,string value) DescribeChoice(Kind kind)
     {
         var attack=GetComponent<PlayerAutoAttack>();
-        string title=TitleFor(kind),description="",value="";
+        string description="",value="";
         switch(kind)
         {
+            case Kind.DashStrike:description="대시 후 3초 안에 다음 근접 공격 강화";value=$"+{Level(kind)*20}% → +{(Level(kind)+1)*20}%";break;
+            case Kind.Shatter:description="근접 처치 시 공격 피해 비례 파열\n2.2m · 공격당 1회 · 연쇄 없음";value=$"{Level(kind)*15}% → {(Level(kind)+1)*15}%";break;
             case Kind.Power:description="모든 무기 공격력 증가";value=$"{DamageMultiplier*100:0}% → {(DamageMultiplier+.1f)*100:0}%";break;
             case Kind.Speed:description="이동 속도 증가";value=$"{MoveMultiplier*100:0}% → {(MoveMultiplier+.05f)*100:0}%";break;
             case Kind.Vitality:
@@ -73,12 +111,14 @@ public sealed class CharacterGrowth : MonoBehaviour
             case Kind.BloodEdge:description="근접 공격 적중 시 체력 회복\n초당 회복량 제한 적용";value=$"{attack.lifestealPerHit:0} → {Mathf.Min(9,attack.lifestealPerHit+3):0}";break;
             case Kind.SecondWind:description="대시 재사용 대기시간 감소";float cd=GetComponent<PlayerDash>().cooldown;value=$"{cd:0.#}초 → {Mathf.Max(.5f,cd-.4f):0.#}초";break;
         }
-        return $"{title}\n\n{description}\n\n{value}\n\n강화 {Level(kind)} → {Level(kind)+1} / {Limit(kind)}";
+        return (TitleFor(kind),description,value);
     }
     public static string TitleFor(Kind kind)
     {
         switch(kind)
         {
+            case Kind.DashStrike:return "대시 일격";
+            case Kind.Shatter:return "왁스 파열";
             case Kind.Power:return "공격력 증가";
             case Kind.Speed:return "이동 속도 증가";
             case Kind.Vitality:return "최대 체력 증가";
@@ -96,6 +136,8 @@ public sealed class CharacterGrowth : MonoBehaviour
         var attack=GetComponent<PlayerAutoAttack>();
         switch(kind)
         {
+            case Kind.DashStrike:effect=$"대시 후 3초 내 다음 근접 공격 +{Level(kind)*20}%";break;
+            case Kind.Shatter:effect=$"근접 처치 시 2.2m에 공격 피해의 {Level(kind)*15}%\n공격당 1회 · 연쇄 발동 없음";break;
             case Kind.Power:effect=$"모든 무기 공격력 +{(DamageMultiplier-1)*100:0}%";break;
             case Kind.Speed:effect=$"이동 속도 +{(MoveMultiplier-1)*100:0}%";break;
             case Kind.Vitality:effect=$"최대 체력 {GetComponent<PlayerHealth>().maxHealth:0} (증강 +{Level(kind)*15})";break;
@@ -111,6 +153,8 @@ public sealed class CharacterGrowth : MonoBehaviour
     {
         switch(kind)
         {
+            case Kind.DashStrike:return "대시 일격";
+            case Kind.Shatter:return "왁스 파열";
             case Kind.Power:return "POWER +10%";
             case Kind.Speed:return "SPEED +5%";
             case Kind.Vitality:return "MAX HP +15";
@@ -126,6 +170,8 @@ public sealed class CharacterGrowth : MonoBehaviour
     {
         switch(kind)
         {
+            case Kind.DashStrike:return new Color(.25f,.9f,1);
+            case Kind.Shatter:return new Color(1,.65f,.2f);
             case Kind.Power:return new Color(1,.45f,.15f);
             case Kind.Speed:return new Color(.2f,.8f,1);
             case Kind.QuickHands:return new Color(1,.85f,.2f);

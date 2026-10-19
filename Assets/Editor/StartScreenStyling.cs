@@ -97,7 +97,7 @@ public static class StartScreenStyling
             var fill=Box(fillArea.transform,"Fill",Vector2.zero,new Vector2(600,10),Orange);
             var handle=Box(sliderObject.transform,"Handle",Vector2.zero,new Vector2(24,32),Cream);handle.raycastTarget=true;
             view.volumeSlider=sliderObject.GetComponent<Slider>();view.volumeSlider.fillRect=fill.rectTransform;view.volumeSlider.handleRect=handle.rectTransform;view.volumeSlider.targetGraphic=handle;view.volumeSlider.minValue=0;view.volumeSlider.maxValue=1;view.volumeSlider.value=1;
-            var controls=Label(overlay.transform,"Controls","이동  WASD     ·     회피  Space\n공격 / 총 발사  좌클릭     ·     강공격  우클릭\n재장전  R     ·     보유 증강  Tab\n마무리 콤보  좌 → 좌 → 우",22,new Vector2(0,-80),new Vector2(880,200),new Color(.76f,.81f,.88f));controls.lineSpacing=1.6f;
+            var controls=Label(overlay.transform,"Controls","이동  WASD     ·     회피  Space\n공격 / 총 발사  좌클릭\n재장전  R     ·     보유 증강  Tab",22,new Vector2(0,-80),new Vector2(880,200),new Color(.76f,.81f,.88f));controls.lineSpacing=1.6f;
             view.closeSettingsButton=ButtonAt(overlay.transform,"Close","돌아가기  ·  Esc",new Vector2(0,-255),new Vector2(360,60),Orange,new Color(.10f,.075f,.045f),24);
             overlay.gameObject.SetActive(false);
             PrefabUtility.SaveAsPrefabAsset(root,StartScreenWorkshop.PrefabPath);

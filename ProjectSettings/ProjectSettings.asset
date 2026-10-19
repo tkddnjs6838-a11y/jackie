@@ -13,7 +13,7 @@ PlayerSettings:
   useOnDemandResources: 0
   accelerometerFrequency: 60
   companyName: DefaultCompany
-  productName: "\uC641\uAFB8\uBCFC \uBFCC\uC218\uAE30"
+  productName: jackie
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b: 0.1254902, a: 1}
@@ -943,7 +943,7 @@ PlayerSettings:
   cloudProjectId: ad538606-7870-4288-95a9-e6c2e540056e
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
-  projectName: jackie
+  projectName: Nc_ai_2026_08_13
   organizationId: tkddnjs6838
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0

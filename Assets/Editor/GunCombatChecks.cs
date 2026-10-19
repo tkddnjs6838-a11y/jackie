@@ -47,6 +47,8 @@ public static class GunCombatChecks
         flow.startButton.onClick.Invoke();Object.FindFirstObjectByType<PlayerHealth>().GrantInvincibility(1000);spawner.enabled=false;controller.enabled=false;gun.ReadInput=false;
         var targets=new Enemy[2];GameObject wall=null;
         var originalPlayerPosition=attack.transform.position;
+        var terrain=Terrain.activeTerrain;bool terrainEnabled=terrain!=null && terrain.enabled;
+        var navigation=MapNavigation.Current;bool navigationEnabled=navigation!=null && navigation.enabled;
         var aimCamera=Camera.main;var oldCameraPosition=aimCamera.transform.position;var oldCameraRotation=aimCamera.transform.rotation;
         var shake=CameraShake.Instance;bool shakeEnabled=shake!=null && shake.enabled;if(shake!=null)shake.enabled=false;gun.AimCamera=aimCamera;
         try
@@ -106,7 +108,8 @@ public static class GunCombatChecks
             }
             CheckThat(Resources.Load<AudioClip>("Audio/LaserCharge")!=null && Resources.Load<AudioClip>("Audio/PistolShot")!=null && Resources.Load<AudioClip>("Audio/MachineShot")!=null,"distinct shot and charge audio loaded");
             weapons.TryEquip(PlayerWeapons.Kind.MachineGun);int burstStart=gun.ShotsFired;gun.SetTrigger(true);
-            float burstLimit=Time.time+5;while(!gun.IsReloading && Time.time<burstLimit)yield return null;gun.SetTrigger(false);
+            // Allow slow editor rendering; keep exact shot, ammo and reload assertions.
+            float burstLimit=Time.time+15;while(!gun.IsReloading && Time.time<burstLimit)yield return null;gun.SetTrigger(false);
             CheckThat(gun.IsReloading && gun.Ammo==0 && gun.ShotsFired-burstStart==29,"held machine gun drains remaining magazine and auto reloads");
             yield return new WaitForSeconds(1.9f);CheckThat(gun.Ammo==30 && gun.Reserve==30,"automatic reload replenishes magazine from reserve");
             weapons.TryEquip(PlayerWeapons.Kind.Shotgun);int oldReserve=gun.Reserve;gun.BeginReload();CheckThat(gun.IsReloading,"manual reload begins");
@@ -124,6 +127,9 @@ public static class GunCombatChecks
             foreach(var target in targets)if(target!=null)Object.Destroy(target.gameObject);
             yield return null;
             weapons.TryEquip(PlayerWeapons.Kind.Shotgun);gun.BeginReload();yield return new WaitForSeconds(1.6f);
+            // The isolated impulse fixtures are outside the baked map. Restore navigation in finally.
+            if(navigation!=null)navigation.enabled=false;
+            if(terrain!=null)terrain.enabled=false;
             attack.transform.position+=Vector3.right*1000;
             // Move the aim camera with the fixture before posing: the old camera was
             // left 1000 metres away and made the wrist point towards the previous arena.
@@ -206,6 +212,8 @@ public static class GunCombatChecks
         finally
         {
             attack.transform.position=originalPlayerPosition;
+            if(navigation!=null)navigation.enabled=navigationEnabled;
+            if(terrain!=null)terrain.enabled=terrainEnabled;
             gun.AimCamera=null;aimCamera.transform.SetPositionAndRotation(oldCameraPosition,oldCameraRotation);if(shake!=null)shake.enabled=shakeEnabled;
             Time.timeScale=1;gun.SetTrigger(false);gun.CancelAction();gun.ReadInput=true;controller.enabled=true;spawner.enabled=true;
             foreach(var target in targets)if(target!=null)Object.Destroy(target.gameObject);if(wall!=null)Object.Destroy(wall);

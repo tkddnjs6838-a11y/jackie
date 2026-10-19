@@ -120,7 +120,7 @@ public sealed class CombatBuildProbe : MonoBehaviour
                     if(d<distance){nearest=enemy;distance=d;}
                 }
                 if(nearest!=null){var direction=nearest.transform.position-attack.transform.position;direction.y=0;if(direction.sqrMagnitude>.01f)attack.transform.rotation=Quaternion.LookRotation(direction);}
-                swing.Invoke(attack,new object[]{false,false});
+                swing.Invoke(attack,null);
             }
             yield return null;
         }

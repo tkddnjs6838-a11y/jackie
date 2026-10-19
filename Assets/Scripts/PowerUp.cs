@@ -70,6 +70,8 @@ public class PowerUp : MonoBehaviour
 
         core.localPosition=shell.localPosition=Vector3.up*.4f;
         PickupCrateVisual.Build(transform,PickupCrateVisual.Category.Timed,tint);
+        core.gameObject.SetActive(false);shell.gameObject.SetActive(false);
+        gameObject.AddComponent<TimedPickupMarker>().kind=kind;
         baseY = transform.position.y + 0.6f;
         var pos = transform.position;
         pos.y = baseY;
@@ -137,7 +139,7 @@ public class PowerUp : MonoBehaviour
             var health=player.GetComponent<PlayerHealth>();
             if(effects==null || !effects.isActiveAndEnabled || health==null || health.IsDead)return;
             effects.Activate(kind);
-            DamageNumber.Create(player.position+Vector3.up*1.5f,PowerUpEffects.NameOf(kind)+" "+effects.Remaining.ToString("F0")+"s",PowerUpEffects.ColorOf(kind));
+            DamageNumber.Create(player.position+Vector3.up*1.5f,PowerUpEffects.DisplayName(kind)+" 획득",PowerUpEffects.ColorOf(kind));
             GameAudio.Play(GameAudio.Sfx.Pickup);
             HitImpact.Spawn(transform.position, Vector3.up, 1.2f);
             Destroy(gameObject);

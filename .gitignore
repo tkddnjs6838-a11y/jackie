@@ -25,3 +25,12 @@ Thumbs.db
 
 # Generated test builds, captures and reports
 /output/
+
+# Local credentials and agent notes
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+/AGENTS.md

@@ -50,6 +50,11 @@ public sealed class PlayerGunCombat : MonoBehaviour
     bool Running=>Time.timeScale>0 && RunStats.Instance!=null && RunStats.Instance.Running;
     void Awake(){weapons=GetComponent<PlayerWeapons>();attack=GetComponent<PlayerAutoAttack>();}
     void Start(){reticle=GunReticle.Create(this,weapons);}
+    public bool ReserveFull(PlayerWeapons.Kind kind)
+    {
+        int i=(int)kind-2;
+        return i>=0 && i<reserve.Length && reserve[i]>=Capacity(kind)*4;
+    }
     public bool AddAmmo(PlayerWeapons.Kind kind,bool first)
     {
         int i=(int)kind-2;
@@ -111,7 +116,7 @@ public sealed class PlayerGunCombat : MonoBehaviour
     public Vector3 PoseDirection()
     {
         // Near targets must not rotate the wrist backwards/upwards around the muzzle.
-        var shoulder=attack.animator!=null && attack.animator.isHuman?attack.animator.GetBoneTransform(HumanBodyBones.RightUpperArm):null;
+        var shoulder=ToyCharacterRig.Bone(attack.animator,HumanBodyBones.RightUpperArm);
         var origin=shoulder!=null?shoulder.position:transform.position+Vector3.up*.7f;
         var local=transform.InverseTransformDirection(AimPoint()-origin);
         float forward=Mathf.Max(1.2f,local.z);
@@ -123,7 +128,7 @@ public sealed class PlayerGunCombat : MonoBehaviour
     {
         SwordArmPose.Apply(attack.animator,transform,attack.swordModel,attack.gripIdleEuler,0,false,false,true,recoil,PoseDirection());
         if(attack.handGrip!=null)attack.handGrip.Apply(attack.swordModel);
-        var hand=attack.animator!=null && attack.animator.isHuman?attack.animator.GetBoneTransform(HumanBodyBones.RightHand):null;
+        var hand=ToyCharacterRig.Bone(attack.animator,HumanBodyBones.RightHand);
         if(hand!=null && weapons.GunModel!=null)weapons.GunModel.position=hand.position;
     }
     void Fire()

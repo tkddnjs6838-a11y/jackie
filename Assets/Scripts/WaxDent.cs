@@ -44,8 +44,10 @@ public class WaxDent : MonoBehaviour
         normal.Normalize();
         normalLocal=Quaternion.Inverse(skin.transform.rotation)*normal;
         impactLocal=Quaternion.Inverse(skin.transform.rotation)*(center+normal*radius*0.9f-skin.transform.position);
-        peak=(lethal ? 0.42f : 0.30f)*Mathf.Clamp(intensity,.1f,1.5f);
-        residual=lethal ? 0.8f : Mathf.InverseLerp(0.35f,1f,damage)*0.30f;
+        var enemy = GetComponent<Enemy>();
+        bool boss = enemy != null && enemy.isBoss;
+        peak=(lethal ? 0.42f : 0.30f)*Mathf.Clamp(intensity,.1f,1.5f)*(boss ? 0.35f : 1f);
+        residual=lethal ? 0.8f : boss ? 0f : Mathf.InverseLerp(0.35f,1f,damage)*0.15f;
         age=0f;sampleBudget=0f;frozen=false;
         SampleSurface(0f, initialized);
         skin.enabled=false;
@@ -107,7 +109,10 @@ public class WaxDent : MonoBehaviour
         mesh.Clear();
         mesh.indexFormat=skin.sharedMesh.indexFormat;
         mesh.vertices=baked.vertices;
-        mesh.uv=baked.uv;
+        var sourceUvs=new System.Collections.Generic.List<Vector4>();
+        // BakeMesh exposes a readable copy even when the imported source is GPU-only.
+        // Preserve all four UV components, including the authored eye mask.
+        baked.GetUVs(0,sourceUvs);mesh.SetUVs(0,sourceUvs);
         mesh.tangents=baked.tangents;
         mesh.subMeshCount=baked.subMeshCount;
         for(int sub=0;sub<baked.subMeshCount;sub++) mesh.SetTriangles(baked.GetTriangles(sub),sub);

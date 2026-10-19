@@ -25,6 +25,23 @@ public sealed class StartScreenView : MonoBehaviour
             volumeSlider.onValueChanged.AddListener(ApplyVolume);
         }
     }
+    void Start()
+    {
+        foreach(var text in GetComponentsInChildren<Text>(true))text.font=Resources.Load<Font>("UI/AugmentKorean");
+        ToyMenuLayout.Build(this);
+        if(startButton!=null)
+        {
+            startButton.onClick.AddListener(ClickSound);
+            if(startButton.GetComponent<StartButtonSplitEffect>()==null)
+                startButton.gameObject.AddComponent<StartButtonSplitEffect>();
+        }
+        if(settingsButton!=null)settingsButton.onClick.AddListener(ClickSound);
+        if(closeSettingsButton!=null)closeSettingsButton.onClick.AddListener(ClickSound);
+        var entrance=GetComponent<StartScreenEntrance>();
+        if(entrance==null)entrance=gameObject.AddComponent<StartScreenEntrance>();
+        entrance.Initialize(this);
+    }
+    static void ClickSound()=>GameAudio.Play(GameAudio.Sfx.UiClick);
     void Update()
     {
         if(settingsPanel!=null && settingsPanel.activeSelf && Keyboard.current!=null && Keyboard.current.escapeKey.wasPressedThisFrame)
@@ -34,6 +51,7 @@ public sealed class StartScreenView : MonoBehaviour
     {
         if(settingsPanel==null)return;
         settingsPanel.SetActive(true);
+        foreach(var light in GetComponentsInChildren<TitleSwordGlint>(true))light.enabled=false;
         if(startButton!=null)startButton.interactable=false;
         if(settingsButton!=null)settingsButton.interactable=false;
         if(closeSettingsButton!=null)closeSettingsButton.Select();
@@ -41,6 +59,7 @@ public sealed class StartScreenView : MonoBehaviour
     public void CloseSettings()
     {
         if(settingsPanel!=null)settingsPanel.SetActive(false);
+        foreach(var light in GetComponentsInChildren<TitleSwordGlint>(true))light.enabled=true;
         if(startButton!=null)startButton.interactable=true;
         if(settingsButton!=null)settingsButton.interactable=true;
         if(volumeSlider!=null){PlayerPrefs.SetFloat(VolumeKey,volumeSlider.value);PlayerPrefs.Save();}

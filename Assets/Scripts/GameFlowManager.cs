@@ -73,15 +73,32 @@ public class GameFlowManager : MonoBehaviour
         var maps=GetComponent<MapSandbox>();
         if(maps!=null && (maps.Busy || maps.CurrentMap<0))return;
         started = true;
+        // Keep audio initialization in the real click callback for WebGL browser policies.
+        if (GameAudio.Instance != null) GameAudio.Instance.StartRunMusic();
+        var feedback=startButton!=null?startButton.GetComponent<StartButtonSplitEffect>():null;
+        if(feedback!=null && feedback.isActiveAndEnabled)
+        {
+            feedback.PlayLaunch();
+            StartCoroutine(StartAfterFeedback());
+        }
+        else BeginGameplay();
+    }
+
+    System.Collections.IEnumerator StartAfterFeedback()
+    {
+        yield return new WaitForSecondsRealtime(.28f);
+        if(!finished)BeginGameplay();
+    }
+
+    void BeginGameplay()
+    {
         if (startPanel != null) startPanel.SetActive(false);
         Time.timeScale = 1f;
         Cursor.lockState = MobileControls.Enabled ? CursorLockMode.None : CursorLockMode.Locked;
         Cursor.visible = MobileControls.Enabled;
 
         if (RunStats.Instance != null) RunStats.Instance.BeginRun();
-        // browsers only allow audio to start after a real click, so the run button is the
-        // earliest point the music can legally begin in the web build
-        if (GameAudio.Instance != null) GameAudio.Instance.StartRunMusic();
+
     }
 
     void HandlePlayerDied()
@@ -133,6 +150,7 @@ public class GameFlowManager : MonoBehaviour
             victoryTimeText.text = "Clear Time  " + (RunStats.Instance != null ? RunStats.Instance.SurvivalTime : Time.timeSinceLevelLoad).ToString("F1") + "s";
 
         FinishRun(victoryStatsText);
+        if(GameAudio.Instance!=null)GameAudio.Instance.StopMusic();
         GameAudio.Play(GameAudio.Sfx.Victory);
         if (victoryPanel != null) victoryPanel.SetActive(true);
         ReleaseCursor();

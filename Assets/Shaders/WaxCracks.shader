@@ -9,7 +9,7 @@ Shader "Game/WaxCracks"
     }
     SubShader
     {
-        Tags { "RenderPipeline"="UniversalPipeline" "Queue"="AlphaTest+10" "RenderType"="TransparentCutout" }
+        Tags { "RenderPipeline"="UniversalPipeline" "Queue"="Transparent+10" "RenderType"="TransparentCutout" }
         Pass
         {
             Tags { "LightMode"="UniversalForward" }
@@ -48,9 +48,9 @@ Shader "Game/WaxCracks"
                 float edge=(d2-d1)/max(2*length(second-first),0.001);
                 // More shell cells fracture as health falls; cracks stay hairline thin.
                 clip(_Damage-(0.05+seed*0.75));
-                float width=lerp(0.009,0.020,_Damage);
-                clip(width*1.75-edge);
-                half3 color=edge<width ? half3(0.035,0.025,0.018) : half3(0.49,0.43,0.32);
+                float width=lerp(0.006,0.012,_Damage);
+                clip(width-edge);
+                half3 color=half3(0.035,0.025,0.018);
                 return half4(color,1);
             }
             ENDHLSL

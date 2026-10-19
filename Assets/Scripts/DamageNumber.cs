@@ -10,15 +10,18 @@ public class DamageNumber : MonoBehaviour
     private float timer;
     private TextMesh textMesh;
     private Color startColor;
+    Renderer labelRenderer;
 
     void Awake()
     {
         textMesh = GetComponent<TextMesh>();
-        startColor = textMesh.color;
+        startColor = textMesh.color;labelRenderer=GetComponent<Renderer>();
     }
 
     void Update()
     {
+        if(RunStats.Instance!=null && !RunStats.Instance.Running){Destroy(gameObject);return;}
+        if(labelRenderer!=null)labelRenderer.enabled=Time.timeScale>0;
         timer += Time.deltaTime;
         transform.position += Vector3.up * floatSpeed * Time.deltaTime;
 
@@ -45,7 +48,7 @@ public class DamageNumber : MonoBehaviour
             tm.text = text;
             tm.color = color;
             tm.fontSize = 64;
-            tm.characterSize = 0.08f;
+            tm.characterSize = text.Length>10?0.018f:text.Length>5?0.028f:0.045f;
             tm.anchor = TextAnchor.MiddleCenter;
             tm.alignment = TextAlignment.Center;
 
